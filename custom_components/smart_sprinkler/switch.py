@@ -56,7 +56,8 @@ class ZoneSwitch(CoordinatorEntity, SwitchEntity):
     @property
     def is_on(self) -> bool:
         zone = self.coordinator.zones.get(self._zone_id)
-        return zone.is_running if zone else False
+        # True during startup delay (is_activating) AND while actually running
+        return (zone.is_running or zone.is_activating) if zone else False
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         zone = self.coordinator.zones.get(self._zone_id)

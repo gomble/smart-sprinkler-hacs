@@ -60,8 +60,9 @@ WEEKDAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
 
 # Controller status
 STATUS_IDLE = "idle"
-STATUS_WAITING = "waiting"          # pump/master on, waiting for valve delay
+STATUS_WAITING = "waiting"          # pump/master on, waiting for startup delay before valve opens
 STATUS_RUNNING = "running"
+STATUS_STOPPING = "stopping"        # valve closed, waiting for shutdown delay before pump/master off
 STATUS_SUSPENDED = "suspended"
 STATUS_RAIN_DELAY = "rain_delay"
 STATUS_ERROR = "error"

@@ -51,7 +51,7 @@ class ZoneActiveBinarySensor(CoordinatorEntity, BinarySensorEntity):
     @property
     def is_on(self) -> bool:
         zone = self.coordinator.zones.get(self._zone_id)
-        return zone.is_running if zone else False
+        return (zone.is_running or zone.is_activating) if zone else False
 
     @callback
     def _handle_coordinator_update(self) -> None:
