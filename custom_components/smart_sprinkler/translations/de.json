@@ -44,16 +44,40 @@
   "options": {
     "step": {
       "init": {
-        "title": "Smart Sprinkler Optionen",
+        "title": "Smart Sprinkler — Was möchtest du bearbeiten?",
         "data": {
-          "weather_entity": "Wetter-Entität",
+          "action": "Bereich"
+        }
+      },
+      "controller": {
+        "title": "Controller & Wetter-Einstellungen",
+        "data": {
+          "controller_name": "Controller-Name",
+          "pump_switch": "Pumpen-Schalter-Entität (optional)",
+          "master_switch": "Hauptventil-Schalter-Entität (optional)",
+          "valve_delay": "Ventilverzögerung nach Pumpe/Hauptventil EIN (Sekunden)",
+          "weather_entity": "Wetter-Entität (optional)",
           "enable_weather": "Wetterbasiertes Überspringen aktivieren",
           "rain_threshold": "Regen-Schwellenwert (mm)",
           "wind_threshold": "Wind-Schwellenwert (km/h)",
-          "temp_min": "Frostschutz-Schwellenwert (°C)",
-          "pump_switch": "Pumpen-Schalter-Entität",
-          "master_switch": "Hauptventil-Entität",
-          "valve_delay": "Ventilverzögerung nach Pumpe/Hauptventil EIN (Sekunden)"
+          "temp_min": "Frostschutz-Schwellenwert (°C)"
+        }
+      },
+      "zones_menu": {
+        "title": "Zonen verwalten ({zone_count} konfiguriert)",
+        "description": "Wähle eine Zone zum Bearbeiten oder Löschen, oder füge eine neue Zone hinzu.",
+        "data": {
+          "action": "Zone"
+        }
+      },
+      "zone_edit": {
+        "title": "{action} Zone: {zone_name}",
+        "data": {
+          "zone_name": "Zonenname",
+          "switch_entity": "Zonen-Schalter-Entität (optional)",
+          "default_duration": "Standarddauer (Sekunden)",
+          "enabled": "Zone aktiviert",
+          "add_another": "Weitere Zone hinzufügen"
         }
       }
     }

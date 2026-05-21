@@ -44,16 +44,40 @@
   "options": {
     "step": {
       "init": {
-        "title": "Smart Sprinkler Options",
+        "title": "Smart Sprinkler — What would you like to edit?",
         "data": {
-          "weather_entity": "Weather Entity",
+          "action": "Section"
+        }
+      },
+      "controller": {
+        "title": "Controller & Weather Settings",
+        "data": {
+          "controller_name": "Controller Name",
+          "pump_switch": "Pump Switch Entity (optional)",
+          "master_switch": "Master Valve Switch Entity (optional)",
+          "valve_delay": "Valve Delay after Pump/Master ON (seconds)",
+          "weather_entity": "Weather Entity (optional)",
           "enable_weather": "Enable Weather-Based Skip",
           "rain_threshold": "Rain Threshold (mm)",
           "wind_threshold": "Wind Threshold (km/h)",
-          "temp_min": "Freeze Threshold (°C)",
-          "pump_switch": "Pump Switch Entity",
-          "master_switch": "Master Valve Entity",
-          "valve_delay": "Valve Delay after Pump/Master ON (seconds)"
+          "temp_min": "Freeze Threshold (°C)"
+        }
+      },
+      "zones_menu": {
+        "title": "Manage Zones ({zone_count} configured)",
+        "description": "Select a zone to edit or delete it, or add a new zone.",
+        "data": {
+          "action": "Zone"
+        }
+      },
+      "zone_edit": {
+        "title": "{action} Zone: {zone_name}",
+        "data": {
+          "zone_name": "Zone Name",
+          "switch_entity": "Zone Switch Entity (optional)",
+          "default_duration": "Default Duration (seconds)",
+          "enabled": "Zone Enabled",
+          "add_another": "Add Another Zone"
         }
       }
     }

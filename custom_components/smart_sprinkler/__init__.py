@@ -51,7 +51,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Smart Sprinkler from a config entry."""
     hass.data.setdefault(DOMAIN, {})
 
-    coordinator = SprinklerCoordinator(hass, entry.entry_id, dict(entry.data))
+    # Merge options on top of data so options-flow changes are picked up
+    config = {**entry.data, **entry.options}
+    coordinator = SprinklerCoordinator(hass, entry.entry_id, config)
     await coordinator.async_config_entry_first_refresh()
     hass.data[DOMAIN][entry.entry_id] = coordinator
 
