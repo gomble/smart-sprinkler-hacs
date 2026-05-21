@@ -1,0 +1,8 @@
+{
+  "name": "Smart Sprinkler",
+  "content_in_root": false,
+  "render_readme": true,
+  "domains": ["switch", "binary_sensor", "sensor", "number", "select"],
+  "homeassistant": "2023.6.0",
+  "filename": "smart-sprinkler-card.js"
+}

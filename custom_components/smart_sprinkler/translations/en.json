@@ -1,0 +1,59 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Smart Sprinkler — Controller Setup",
+        "description": "Enter your controller name and optional pump/master valve switch entities.",
+        "data": {
+          "controller_name": "Controller Name",
+          "pump_switch": "Pump Switch Entity (optional)",
+          "master_switch": "Master Valve Switch Entity (optional)"
+        }
+      },
+      "safety": {
+        "title": "Weather & Safety Settings",
+        "description": "Connect a weather entity to automatically skip watering when conditions are unfavorable.",
+        "data": {
+          "weather_entity": "Weather Entity (optional)",
+          "enable_weather": "Enable Weather-Based Skip",
+          "rain_threshold": "Rain Skip Threshold (mm)",
+          "wind_threshold": "Wind Skip Threshold (km/h)",
+          "temp_min": "Freeze Protection Threshold (°C)"
+        }
+      },
+      "zone": {
+        "title": "Add Zone {zone_num}",
+        "description": "Configure a watering zone. You can add multiple zones.",
+        "data": {
+          "zone_name": "Zone Name",
+          "switch_entity": "Zone Switch Entity (optional)",
+          "default_duration": "Default Duration (seconds)",
+          "enabled": "Zone Enabled",
+          "add_another": "Add Another Zone"
+        }
+      }
+    },
+    "error": {
+      "unknown": "An unexpected error occurred."
+    },
+    "abort": {
+      "already_configured": "This controller is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Smart Sprinkler Options",
+        "data": {
+          "weather_entity": "Weather Entity",
+          "enable_weather": "Enable Weather-Based Skip",
+          "rain_threshold": "Rain Threshold (mm)",
+          "wind_threshold": "Wind Threshold (km/h)",
+          "temp_min": "Freeze Threshold (°C)",
+          "pump_switch": "Pump Switch Entity",
+          "master_switch": "Master Valve Entity"
+        }
+      }
+    }
+  }
+}

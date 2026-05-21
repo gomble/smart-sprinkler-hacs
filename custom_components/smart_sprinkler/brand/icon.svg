@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="256" fill="#1b5e20"/>
+
+  <!-- Grass / ground -->
+  <ellipse cx="256" cy="370" rx="160" ry="18" fill="#2e7d32"/>
+
+  <!-- Sprinkler body — pipe vertical -->
+  <rect x="244" y="260" width="24" height="110" rx="8" fill="#a5d6a7"/>
+  <!-- Sprinkler body — base T -->
+  <rect x="210" y="350" width="92" height="20" rx="8" fill="#81c784"/>
+  <!-- Sprinkler head -->
+  <ellipse cx="256" cy="255" rx="22" ry="10" fill="#c8e6c9"/>
+  <!-- Nozzle tip -->
+  <circle cx="256" cy="248" r="8" fill="#e8f5e9"/>
+
+  <!-- Water arcs — left -->
+  <path d="M 256 248 Q 180 200 130 240" stroke="#64b5f6" stroke-width="6" fill="none" stroke-linecap="round" opacity="0.85"/>
+  <circle cx="128" cy="241" r="5" fill="#64b5f6" opacity="0.9"/>
+
+  <!-- Water arcs — center-left -->
+  <path d="M 256 248 Q 210 170 200 120" stroke="#42a5f5" stroke-width="6" fill="none" stroke-linecap="round" opacity="0.85"/>
+  <circle cx="199" cy="118" r="5" fill="#42a5f5" opacity="0.9"/>
+
+  <!-- Water arcs — center -->
+  <path d="M 256 248 Q 256 150 256 100" stroke="#2196f3" stroke-width="7" fill="none" stroke-linecap="round" opacity="0.9"/>
+  <circle cx="256" cy="98" r="6" fill="#2196f3" opacity="0.95"/>
+
+  <!-- Water arcs — center-right -->
+  <path d="M 256 248 Q 302 170 312 120" stroke="#42a5f5" stroke-width="6" fill="none" stroke-linecap="round" opacity="0.85"/>
+  <circle cx="313" cy="118" r="5" fill="#42a5f5" opacity="0.9"/>
+
+  <!-- Water arcs — right -->
+  <path d="M 256 248 Q 332 200 382 240" stroke="#64b5f6" stroke-width="6" fill="none" stroke-linecap="round" opacity="0.85"/>
+  <circle cx="384" cy="241" r="5" fill="#64b5f6" opacity="0.9"/>
+
+  <!-- Water droplets falling -->
+  <ellipse cx="148" cy="268" rx="4" ry="6" fill="#90caf9" opacity="0.7"/>
+  <ellipse cx="215" cy="148" rx="3" ry="5" fill="#90caf9" opacity="0.7"/>
+  <ellipse cx="256" cy="125" rx="4" ry="6" fill="#90caf9" opacity="0.7"/>
+  <ellipse cx="297" cy="148" rx="3" ry="5" fill="#90caf9" opacity="0.7"/>
+  <ellipse cx="364" cy="268" rx="4" ry="6" fill="#90caf9" opacity="0.7"/>
+</svg>

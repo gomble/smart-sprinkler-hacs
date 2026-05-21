@@ -1,0 +1,59 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Smart Sprinkler — Controller einrichten",
+        "description": "Gib den Namen deines Controllers und optionale Pumpen- oder Hauptventil-Schalter-Entitäten an.",
+        "data": {
+          "controller_name": "Controller-Name",
+          "pump_switch": "Pumpen-Schalter-Entität (optional)",
+          "master_switch": "Hauptventil-Schalter-Entität (optional)"
+        }
+      },
+      "safety": {
+        "title": "Wetter- & Sicherheitseinstellungen",
+        "description": "Verbinde eine Wetter-Entität, um die Bewässerung bei ungünstigen Bedingungen automatisch zu überspringen.",
+        "data": {
+          "weather_entity": "Wetter-Entität (optional)",
+          "enable_weather": "Wetterbasiertes Überspringen aktivieren",
+          "rain_threshold": "Regen-Schwellenwert (mm)",
+          "wind_threshold": "Wind-Schwellenwert (km/h)",
+          "temp_min": "Frostschutz-Schwellenwert (°C)"
+        }
+      },
+      "zone": {
+        "title": "Zone {zone_num} hinzufügen",
+        "description": "Konfiguriere eine Bewässerungszone. Du kannst mehrere Zonen hinzufügen.",
+        "data": {
+          "zone_name": "Zonenname",
+          "switch_entity": "Zonen-Schalter-Entität (optional)",
+          "default_duration": "Standarddauer (Sekunden)",
+          "enabled": "Zone aktiviert",
+          "add_another": "Weitere Zone hinzufügen"
+        }
+      }
+    },
+    "error": {
+      "unknown": "Ein unerwarteter Fehler ist aufgetreten."
+    },
+    "abort": {
+      "already_configured": "Dieser Controller ist bereits konfiguriert."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Smart Sprinkler Optionen",
+        "data": {
+          "weather_entity": "Wetter-Entität",
+          "enable_weather": "Wetterbasiertes Überspringen aktivieren",
+          "rain_threshold": "Regen-Schwellenwert (mm)",
+          "wind_threshold": "Wind-Schwellenwert (km/h)",
+          "temp_min": "Frostschutz-Schwellenwert (°C)",
+          "pump_switch": "Pumpen-Schalter-Entität",
+          "master_switch": "Hauptventil-Entität"
+        }
+      }
+    }
+  }
+}
