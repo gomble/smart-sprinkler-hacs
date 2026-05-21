@@ -7,7 +7,8 @@
         "data": {
           "controller_name": "Controller Name",
           "pump_switch": "Pump Switch Entity (optional)",
-          "master_switch": "Master Valve Switch Entity (optional)"
+          "master_switch": "Master Valve Switch Entity (optional)",
+          "valve_delay": "Valve Delay after Pump/Master ON (seconds)"
         }
       },
       "safety": {
@@ -51,7 +52,8 @@
           "wind_threshold": "Wind Threshold (km/h)",
           "temp_min": "Freeze Threshold (°C)",
           "pump_switch": "Pump Switch Entity",
-          "master_switch": "Master Valve Entity"
+          "master_switch": "Master Valve Entity",
+          "valve_delay": "Valve Delay after Pump/Master ON (seconds)"
         }
       }
     }

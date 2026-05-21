@@ -19,11 +19,13 @@ from .const import (
     CONF_ZONE_NAME,
     CONF_PUMP_SWITCH,
     CONF_MASTER_SWITCH,
+    CONF_VALVE_DELAY,
     CONF_WEATHER_ENTITY,
     CONF_RAIN_THRESHOLD,
     CONF_WIND_THRESHOLD,
     CONF_TEMP_MIN,
     CONF_ENABLE_WEATHER,
+    DEFAULT_VALVE_DELAY,
     DEFAULT_RAIN_THRESHOLD,
     DEFAULT_WIND_THRESHOLD,
     DEFAULT_TEMP_MIN,
@@ -61,6 +63,12 @@ class SmartSprinklerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 ),
                 vol.Optional(CONF_MASTER_SWITCH): selector.EntitySelector(
                     selector.EntitySelectorConfig(domain="switch")
+                ),
+                vol.Optional(CONF_VALVE_DELAY, default=DEFAULT_VALVE_DELAY): selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        min=0, max=120, step=1, unit_of_measurement="s",
+                        mode=selector.NumberSelectorMode.BOX,
+                    )
                 ),
             }
         )
@@ -235,6 +243,15 @@ class SmartSprinklerOptionsFlow(config_entries.OptionsFlow):
                     description={"suggested_value": self._data.get(CONF_MASTER_SWITCH)},
                 ): selector.EntitySelector(
                     selector.EntitySelectorConfig(domain="switch")
+                ),
+                vol.Optional(
+                    CONF_VALVE_DELAY,
+                    default=self._data.get(CONF_VALVE_DELAY, DEFAULT_VALVE_DELAY),
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        min=0, max=120, step=1, unit_of_measurement="s",
+                        mode=selector.NumberSelectorMode.BOX,
+                    )
                 ),
             }
         )

@@ -13,12 +13,15 @@ from homeassistant.util import dt as dt_util
 from .const import (
     DOMAIN,
     STATUS_IDLE,
+    STATUS_WAITING,
     STATUS_RUNNING,
     STATUS_RAIN_DELAY,
     STATUS_SUSPENDED,
     DEFAULT_RAIN_THRESHOLD,
     DEFAULT_WIND_THRESHOLD,
     DEFAULT_TEMP_MIN,
+    DEFAULT_VALVE_DELAY,
+    CONF_VALVE_DELAY,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -48,6 +51,7 @@ class SprinklerCoordinator(DataUpdateCoordinator):
         self.weather_skip_reason: str | None = None
         self.total_water_time_today: int = 0  # seconds
         self._last_date_reset: datetime | None = None
+        self.valve_delay_remaining: int = 0   # countdown shown in UI while waiting
 
         # Build initial zone states from config
         for zone_cfg in config.get("zones", []):
@@ -78,6 +82,7 @@ class SprinklerCoordinator(DataUpdateCoordinator):
             "active_zone": self.active_zone_id,
             "total_water_time_today": self.total_water_time_today,
             "weather_skip_reason": self.weather_skip_reason,
+            "valve_delay_remaining": self.valve_delay_remaining,
         }
 
     # ------------------------------------------------------------------
@@ -123,7 +128,10 @@ class SprinklerCoordinator(DataUpdateCoordinator):
     # ------------------------------------------------------------------
 
     async def async_start_zone(self, zone_id: str, duration_seconds: int) -> None:
-        """Start a single zone for the given duration."""
+        """Start a single zone for the given duration.
+
+        Sequence: pump/master ON → wait valve_delay → zone valve ON → run timer.
+        """
         if zone_id not in self.zones:
             _LOGGER.error("Zone %s not found", zone_id)
             return
@@ -133,16 +141,29 @@ class SprinklerCoordinator(DataUpdateCoordinator):
 
         zone = self.zones[zone_id]
         self.active_zone_id = zone_id
-        self.status = STATUS_RUNNING
-        zone.is_running = True
-        zone.remaining_seconds = duration_seconds
-        zone.started_at = dt_util.now()
 
         # Activate pump/master if configured
         await self._async_set_pump(True)
         await self._async_set_master(True)
 
-        # Activate the zone switch entity
+        # Wait for valve delay before opening the zone valve
+        delay = int(self.config.get(CONF_VALVE_DELAY, DEFAULT_VALVE_DELAY))
+        if delay > 0:
+            self.status = STATUS_WAITING
+            self.valve_delay_remaining = delay
+            self.async_set_updated_data(await self._async_update_data())
+
+            for remaining in range(delay, 0, -1):
+                await asyncio.sleep(1)
+                self.valve_delay_remaining = remaining - 1
+            self.valve_delay_remaining = 0
+
+        # Now open the zone valve
+        self.status = STATUS_RUNNING
+        zone.is_running = True
+        zone.remaining_seconds = duration_seconds
+        zone.started_at = dt_util.now()
+
         if zone.switch_entity:
             await self.hass.services.async_call(
                 "switch", "turn_on", {"entity_id": zone.switch_entity}
@@ -197,7 +218,7 @@ class SprinklerCoordinator(DataUpdateCoordinator):
         self.async_set_updated_data(await self._async_update_data())
 
     async def async_stop_all(self) -> None:
-        """Stop all running zones."""
+        """Stop all running zones (also cancels an active valve delay)."""
         if self._active_task and not self._active_task.done():
             self._active_task.cancel()
         for zone_id, zone in self.zones.items():
@@ -205,6 +226,7 @@ class SprinklerCoordinator(DataUpdateCoordinator):
                 await self.async_stop_zone(zone_id)
         self.status = STATUS_IDLE
         self.active_zone_id = None
+        self.valve_delay_remaining = 0
         await self._async_set_pump(False)
         await self._async_set_master(False)
         self.async_set_updated_data(await self._async_update_data())

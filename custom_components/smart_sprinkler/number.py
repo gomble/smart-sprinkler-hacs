@@ -15,9 +15,11 @@ from .const import (
     CONF_RAIN_THRESHOLD,
     CONF_WIND_THRESHOLD,
     CONF_TEMP_MIN,
+    CONF_VALVE_DELAY,
     DEFAULT_RAIN_THRESHOLD,
     DEFAULT_WIND_THRESHOLD,
     DEFAULT_TEMP_MIN,
+    DEFAULT_VALVE_DELAY,
 )
 from .coordinator import SprinklerCoordinator
 
@@ -40,6 +42,7 @@ async def async_setup_entry(
     entities.append(RainThresholdNumber(coordinator, entry))
     entities.append(WindThresholdNumber(coordinator, entry))
     entities.append(FreezeThresholdNumber(coordinator, entry))
+    entities.append(ValveDelayNumber(coordinator, entry))
 
     async_add_entities(entities)
 
@@ -294,6 +297,40 @@ class FreezeThresholdNumber(CoordinatorEntity, NumberEntity):
 
     async def async_set_native_value(self, value: float) -> None:
         self.coordinator.config[CONF_TEMP_MIN] = value
+        self.async_write_ha_state()
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        self.async_write_ha_state()
+
+
+class ValveDelayNumber(CoordinatorEntity, NumberEntity):
+    """Seconds to wait after pump/master ON before opening the zone valve."""
+
+    _attr_native_min_value = 0
+    _attr_native_max_value = 120
+    _attr_native_step = 1
+    _attr_native_unit_of_measurement = UnitOfTime.SECONDS
+    _attr_mode = NumberMode.BOX
+    _attr_icon = "mdi:timer-play-outline"
+
+    def __init__(self, coordinator: SprinklerCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator)
+        self._attr_name = f"{entry.data.get('controller_name', NAME)} Valve Delay"
+        self._attr_unique_id = f"{entry.entry_id}_valve_delay"
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, entry.entry_id)},
+            name=entry.data.get("controller_name", NAME),
+            manufacturer="Smart Sprinkler",
+            model="Sprinkler Controller",
+        )
+
+    @property
+    def native_value(self) -> float:
+        return float(self.coordinator.config.get(CONF_VALVE_DELAY, DEFAULT_VALVE_DELAY))
+
+    async def async_set_native_value(self, value: float) -> None:
+        self.coordinator.config[CONF_VALVE_DELAY] = int(value)
         self.async_write_ha_state()
 
     @callback

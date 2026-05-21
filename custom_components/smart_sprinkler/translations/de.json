@@ -7,7 +7,8 @@
         "data": {
           "controller_name": "Controller-Name",
           "pump_switch": "Pumpen-Schalter-Entität (optional)",
-          "master_switch": "Hauptventil-Schalter-Entität (optional)"
+          "master_switch": "Hauptventil-Schalter-Entität (optional)",
+          "valve_delay": "Ventilverzögerung nach Pumpe/Hauptventil EIN (Sekunden)"
         }
       },
       "safety": {
@@ -51,7 +52,8 @@
           "wind_threshold": "Wind-Schwellenwert (km/h)",
           "temp_min": "Frostschutz-Schwellenwert (°C)",
           "pump_switch": "Pumpen-Schalter-Entität",
-          "master_switch": "Hauptventil-Entität"
+          "master_switch": "Hauptventil-Entität",
+          "valve_delay": "Ventilverzögerung nach Pumpe/Hauptventil EIN (Sekunden)"
         }
       }
     }
