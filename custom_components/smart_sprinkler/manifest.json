@@ -1,11 +1,13 @@
 {
   "domain": "smart_sprinkler",
   "name": "Smart Sprinkler",
-  "codeowners": ["@gomble"],
+  "codeowners": [
+    "@gomble"
+  ],
   "config_flow": true,
   "documentation": "https://github.com/gomble/smart-sprinkler-hacs",
   "issue_tracker": "https://github.com/gomble/smart-sprinkler-hacs/issues",
   "requirements": [],
-  "version": "1.0.0",
+  "version": "1.0.1",
   "iot_class": "local_push"
 }
