@@ -96,7 +96,7 @@ class AnyZoneActiveBinarySensor(CoordinatorEntity, BinarySensorEntity):
     @property
     def extra_state_attributes(self) -> dict:
         return {
-            "active_zone": self.coordinator.active_zone_id,
+            "active_zones": self.coordinator.active_zone_ids,
             "status": self.coordinator.status,
         }
 

@@ -144,7 +144,7 @@ class ControllerStatusSensor(CoordinatorEntity, SensorEntity):
     @property
     def extra_state_attributes(self) -> dict:
         return {
-            "active_zone": self.coordinator.active_zone_id,
+            "active_zones": self.coordinator.active_zone_ids,
             "rain_delay_until": (
                 self.coordinator.rain_delay_until.isoformat()
                 if self.coordinator.rain_delay_until
