@@ -35,8 +35,6 @@ DEFAULT_WIND_THRESHOLD = 40.0       # km/h — skip if wind >= this
 DEFAULT_TEMP_MIN = 2.0              # °C — skip if temp <= this (freeze protection)
 DEFAULT_FREEZE_THRESHOLD = 4.0      # °C
 DEFAULT_RUN_DURATION = 10           # minutes
-DEFAULT_SOAK_TIME = 5               # minutes between cycles (soak & cycle mode)
-DEFAULT_CYCLE_COUNT = 1
 
 # Schedule modes
 SCHEDULE_MODE_DAILY = "daily"

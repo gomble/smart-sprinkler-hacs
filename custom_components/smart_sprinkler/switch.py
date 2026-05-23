@@ -95,12 +95,11 @@ class ZoneSwitch(CoordinatorEntity, SwitchEntity):
 
 
 class ControllerEnabledSwitch(CoordinatorEntity, SwitchEntity):
-    """Master enable/disable for the whole controller."""
+    """Master enable/disable for the whole controller (also pauses scheduler)."""
 
     def __init__(self, coordinator: SprinklerCoordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator)
         self._entry = entry
-        self._enabled = True
         self._attr_name = f"{entry.data.get('controller_name', NAME)} Enabled"
         self._attr_unique_id = f"{entry.entry_id}_controller_enabled"
         self._attr_icon = "mdi:sprinkler-variant"
@@ -113,13 +112,13 @@ class ControllerEnabledSwitch(CoordinatorEntity, SwitchEntity):
 
     @property
     def is_on(self) -> bool:
-        return self._enabled
+        return self.coordinator._controller_enabled
 
     async def async_turn_on(self, **kwargs: Any) -> None:
-        self._enabled = True
+        self.coordinator._controller_enabled = True
         self.async_write_ha_state()
 
     async def async_turn_off(self, **kwargs: Any) -> None:
-        self._enabled = False
+        self.coordinator._controller_enabled = False
         await self.coordinator.async_stop_all()
         self.async_write_ha_state()

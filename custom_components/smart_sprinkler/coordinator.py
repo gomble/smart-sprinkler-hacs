@@ -22,6 +22,13 @@ from .const import (
     DEFAULT_TEMP_MIN,
     DEFAULT_VALVE_DELAY,
     CONF_VALVE_DELAY,
+    SCHEDULE_MODE_DAILY,
+    SCHEDULE_MODE_INTERVAL,
+    SCHEDULE_MODE_ODD,
+    SCHEDULE_MODE_EVEN,
+    SCHEDULE_MODE_WEEKDAYS,
+    SCHEDULE_MODE_CUSTOM,
+    WEEKDAYS,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -56,10 +63,14 @@ class SprinklerCoordinator(DataUpdateCoordinator):
         self.total_water_time_today: int = 0
         self._last_date_reset: datetime | None = None
         self.valve_delay_remaining: int = 0
+        self._scheduler_task: asyncio.Task | None = None
+        self._controller_enabled: bool = True
 
         for zone_cfg in config.get("zones", []):
             zid = zone_cfg["zone_id"]
             self.zones[zid] = ZoneState(zid, zone_cfg)
+
+        self.update_next_runs()
 
     # ------------------------------------------------------------------
     # Properties
@@ -346,6 +357,124 @@ class SprinklerCoordinator(DataUpdateCoordinator):
         else:
             self.status = STATUS_IDLE
 
+    # ------------------------------------------------------------------
+    # Scheduler — automatic zone execution based on schedule settings
+    # ------------------------------------------------------------------
+
+    def update_next_runs(self) -> None:
+        """Recalculate next_run for all zones based on their schedule config."""
+        now = dt_util.now()
+        for zone in self.zones.values():
+            zone.next_run = self._calc_next_run(zone, now)
+
+    def _calc_next_run(self, zone: "ZoneState", now: datetime) -> datetime | None:
+        """Calculate when this zone should next run."""
+        if not zone.is_enabled:
+            return None
+
+        mode = zone.schedule.get("mode", "daily")
+        hour = zone.schedule.get("start_hour", 6)
+        minute = zone.schedule.get("start_minute", 0)
+
+        today_run = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+
+        if mode == SCHEDULE_MODE_DAILY:
+            if now < today_run:
+                return today_run
+            return today_run + timedelta(days=1)
+
+        if mode == SCHEDULE_MODE_INTERVAL:
+            interval = zone.schedule.get("interval_days", 2)
+            if zone.last_run:
+                last_date = zone.last_run.replace(hour=hour, minute=minute, second=0, microsecond=0)
+                candidate = last_date + timedelta(days=interval)
+                if candidate <= now:
+                    candidate = today_run if now < today_run else today_run + timedelta(days=1)
+                return candidate
+            return today_run if now < today_run else today_run + timedelta(days=1)
+
+        if mode == SCHEDULE_MODE_ODD:
+            return self._next_day_matching(now, today_run, lambda d: d.day % 2 == 1)
+
+        if mode == SCHEDULE_MODE_EVEN:
+            return self._next_day_matching(now, today_run, lambda d: d.day % 2 == 0)
+
+        if mode == SCHEDULE_MODE_WEEKDAYS:
+            days = zone.schedule.get("weekdays", [])
+            if not days:
+                return None
+            day_indices = [WEEKDAYS.index(d) for d in days if d in WEEKDAYS]
+            if not day_indices:
+                return None
+            return self._next_day_matching(now, today_run, lambda d: d.weekday() in day_indices)
+
+        if mode == SCHEDULE_MODE_CUSTOM:
+            days = zone.schedule.get("weekdays", [])
+            if not days:
+                return None
+            day_indices = [WEEKDAYS.index(d) for d in days if d in WEEKDAYS]
+            if not day_indices:
+                return None
+            return self._next_day_matching(now, today_run, lambda d: d.weekday() in day_indices)
+
+        return None
+
+    def _next_day_matching(self, now: datetime, today_run: datetime, predicate) -> datetime:
+        """Find the next date (starting today) that matches the predicate."""
+        candidate = today_run if now < today_run else today_run + timedelta(days=1)
+        for _ in range(14):
+            if predicate(candidate):
+                return candidate
+            candidate += timedelta(days=1)
+        return candidate
+
+    async def async_start_scheduler(self) -> None:
+        """Start the background scheduler loop."""
+        if self._scheduler_task and not self._scheduler_task.done():
+            return
+        self._scheduler_task = self.hass.async_create_task(self._scheduler_loop())
+
+    async def async_stop_scheduler(self) -> None:
+        """Stop the background scheduler."""
+        if self._scheduler_task and not self._scheduler_task.done():
+            self._scheduler_task.cancel()
+            try:
+                await self._scheduler_task
+            except asyncio.CancelledError:
+                pass
+            self._scheduler_task = None
+
+    async def _scheduler_loop(self) -> None:
+        """Check every 30s if any zone is due to run."""
+        try:
+            while True:
+                await asyncio.sleep(30)
+                if not self._controller_enabled:
+                    continue
+                if self.rain_delay_until and dt_util.now() < self.rain_delay_until:
+                    continue
+
+                now = dt_util.now()
+                for zone in self.zones.values():
+                    if not zone.is_enabled or not zone.next_run:
+                        continue
+                    if zone.is_running or zone.is_activating:
+                        continue
+                    if now >= zone.next_run:
+                        skip, reason = await self.async_check_weather()
+                        if skip:
+                            self.weather_skip_reason = reason
+                            _LOGGER.info("Scheduler skipping zone %s: %s", zone.zone_id, reason)
+                            zone.next_run = self._calc_next_run(zone, now + timedelta(minutes=1))
+                            continue
+                        self.weather_skip_reason = None
+                        _LOGGER.info("Scheduler starting zone %s for %ds", zone.zone_id, zone.default_duration)
+                        await self.async_start_zone(zone.zone_id, zone.default_duration)
+                        zone.next_run = self._calc_next_run(zone, now + timedelta(minutes=1))
+                        self.async_set_updated_data(await self._async_update_data())
+        except asyncio.CancelledError:
+            raise
+
     async def _async_set_pump(self, on: bool) -> None:
         pump = self.config.get("pump_switch")
         if pump:
@@ -378,10 +507,6 @@ class ZoneState:
         self.started_at: datetime | None = None
         self.schedule: dict = config.get("schedule", {})
         self.default_duration: int = config.get("default_duration", 600)
-        self.soak_cycle_enabled: bool = config.get("soak_cycle_enabled", False)
-        self.cycle_duration: int = config.get("cycle_duration", 300)
-        self.soak_duration: int = config.get("soak_duration", 300)
-        self.cycle_count: int = config.get("cycle_count", 2)
 
     def as_dict(self) -> dict[str, Any]:
         return {

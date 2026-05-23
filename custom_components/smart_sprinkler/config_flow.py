@@ -358,9 +358,5 @@ def _build_zone(data: dict) -> dict:
         "switch_entity": data.get("switch_entity") or None,
         "default_duration": int(data.get("default_duration", 600)),
         "enabled": data.get("enabled", True),
-        "schedule": {},
-        "soak_cycle_enabled": False,
-        "cycle_duration": 300,
-        "soak_duration": 300,
-        "cycle_count": 2,
+        "schedule": {"mode": "daily", "start_hour": 6, "start_minute": 0},
     }

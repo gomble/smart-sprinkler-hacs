@@ -35,9 +35,7 @@ async def async_setup_entry(
 
     for zone_id in coordinator.zones:
         entities.append(ZoneDurationNumber(coordinator, entry, zone_id))
-        entities.append(ZoneCycleDurationNumber(coordinator, entry, zone_id))
-        entities.append(ZoneSoakDurationNumber(coordinator, entry, zone_id))
-        entities.append(ZoneCycleCountNumber(coordinator, entry, zone_id))
+        entities.append(ZoneIntervalDaysNumber(coordinator, entry, zone_id))
 
     entities.append(RainThresholdNumber(coordinator, entry))
     entities.append(WindThresholdNumber(coordinator, entry))
@@ -86,99 +84,21 @@ class ZoneDurationNumber(CoordinatorEntity, NumberEntity):
         self.async_write_ha_state()
 
 
-class ZoneCycleDurationNumber(CoordinatorEntity, NumberEntity):
-    """Cycle duration for soak-and-cycle mode (seconds)."""
-
-    _attr_native_min_value = 60
-    _attr_native_max_value = 3600
-    _attr_native_step = 60
-    _attr_native_unit_of_measurement = UnitOfTime.SECONDS
-    _attr_mode = NumberMode.BOX
-    _attr_icon = "mdi:timer-refresh"
-
-    def __init__(self, coordinator: SprinklerCoordinator, entry: ConfigEntry, zone_id: str) -> None:
-        super().__init__(coordinator)
-        self._zone_id = zone_id
-        zone = coordinator.zones[zone_id]
-        self._attr_name = f"{zone.name} Cycle Duration"
-        self._attr_unique_id = f"{entry.entry_id}_zone_cycle_duration_{zone_id}"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, entry.entry_id)},
-            name=entry.data.get("controller_name", NAME),
-            manufacturer="Smart Sprinkler",
-            model="Sprinkler Controller",
-        )
-
-    @property
-    def native_value(self) -> float:
-        zone = self.coordinator.zones.get(self._zone_id)
-        return float(zone.cycle_duration) if zone else 300.0
-
-    async def async_set_native_value(self, value: float) -> None:
-        zone = self.coordinator.zones.get(self._zone_id)
-        if zone:
-            zone.cycle_duration = int(value)
-            self.async_write_ha_state()
-
-    @callback
-    def _handle_coordinator_update(self) -> None:
-        self.async_write_ha_state()
-
-
-class ZoneSoakDurationNumber(CoordinatorEntity, NumberEntity):
-    """Soak pause between cycles (seconds)."""
-
-    _attr_native_min_value = 60
-    _attr_native_max_value = 3600
-    _attr_native_step = 60
-    _attr_native_unit_of_measurement = UnitOfTime.SECONDS
-    _attr_mode = NumberMode.BOX
-    _attr_icon = "mdi:timer-pause"
-
-    def __init__(self, coordinator: SprinklerCoordinator, entry: ConfigEntry, zone_id: str) -> None:
-        super().__init__(coordinator)
-        self._zone_id = zone_id
-        zone = coordinator.zones[zone_id]
-        self._attr_name = f"{zone.name} Soak Duration"
-        self._attr_unique_id = f"{entry.entry_id}_zone_soak_duration_{zone_id}"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, entry.entry_id)},
-            name=entry.data.get("controller_name", NAME),
-            manufacturer="Smart Sprinkler",
-            model="Sprinkler Controller",
-        )
-
-    @property
-    def native_value(self) -> float:
-        zone = self.coordinator.zones.get(self._zone_id)
-        return float(zone.soak_duration) if zone else 300.0
-
-    async def async_set_native_value(self, value: float) -> None:
-        zone = self.coordinator.zones.get(self._zone_id)
-        if zone:
-            zone.soak_duration = int(value)
-            self.async_write_ha_state()
-
-    @callback
-    def _handle_coordinator_update(self) -> None:
-        self.async_write_ha_state()
-
-
-class ZoneCycleCountNumber(CoordinatorEntity, NumberEntity):
-    """Number of soak-and-cycle repetitions."""
+class ZoneIntervalDaysNumber(CoordinatorEntity, NumberEntity):
+    """Run every N days (only used when schedule mode is 'interval')."""
 
     _attr_native_min_value = 1
-    _attr_native_max_value = 10
+    _attr_native_max_value = 14
     _attr_native_step = 1
-    _attr_mode = NumberMode.SLIDER
-    _attr_icon = "mdi:repeat"
+    _attr_mode = NumberMode.BOX
+    _attr_icon = "mdi:calendar-refresh"
 
     def __init__(self, coordinator: SprinklerCoordinator, entry: ConfigEntry, zone_id: str) -> None:
         super().__init__(coordinator)
         self._zone_id = zone_id
         zone = coordinator.zones[zone_id]
-        self._attr_name = f"{zone.name} Cycle Count"
-        self._attr_unique_id = f"{entry.entry_id}_zone_cycle_count_{zone_id}"
+        self._attr_name = f"{zone.name} Interval Days"
+        self._attr_unique_id = f"{entry.entry_id}_zone_interval_days_{zone_id}"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},
             name=entry.data.get("controller_name", NAME),
@@ -189,12 +109,13 @@ class ZoneCycleCountNumber(CoordinatorEntity, NumberEntity):
     @property
     def native_value(self) -> float:
         zone = self.coordinator.zones.get(self._zone_id)
-        return float(zone.cycle_count) if zone else 2.0
+        return float(zone.schedule.get("interval_days", 2)) if zone else 2.0
 
     async def async_set_native_value(self, value: float) -> None:
         zone = self.coordinator.zones.get(self._zone_id)
         if zone:
-            zone.cycle_count = int(value)
+            zone.schedule["interval_days"] = int(value)
+            self.coordinator.update_next_runs()
             self.async_write_ha_state()
 
     @callback

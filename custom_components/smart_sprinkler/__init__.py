@@ -31,6 +31,7 @@ PLATFORMS = [
     Platform.SENSOR,
     Platform.NUMBER,
     Platform.SELECT,
+    Platform.TIME,
 ]
 
 START_ZONE_SCHEMA = vol.Schema(
@@ -56,6 +57,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coordinator = SprinklerCoordinator(hass, entry.entry_id, config)
     await coordinator.async_config_entry_first_refresh()
     hass.data[DOMAIN][entry.entry_id] = coordinator
+    await coordinator.async_start_scheduler()
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
@@ -106,6 +108,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     if unload_ok:
         coordinator: SprinklerCoordinator = hass.data[DOMAIN].pop(entry.entry_id)
+        await coordinator.async_stop_scheduler()
         await coordinator.async_stop_all()
 
     cards = SprinklerCardRegistration(hass)
