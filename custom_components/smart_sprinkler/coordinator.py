@@ -546,7 +546,9 @@ class SprinklerCoordinator(DataUpdateCoordinator):
         """Start the background scheduler loop."""
         if self._scheduler_task and not self._scheduler_task.done():
             return
-        self._scheduler_task = self.hass.async_create_task(self._scheduler_loop())
+        self._scheduler_task = self.hass.async_create_background_task(
+            self._scheduler_loop(), f"{DOMAIN}_scheduler_{self.entry_id}"
+        )
 
     async def async_stop_scheduler(self) -> None:
         """Stop the background scheduler."""
