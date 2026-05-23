@@ -6,7 +6,7 @@
  * Only required config: entity (the status sensor, e.g. sensor.my_garden_status)
  */
 
-const CARD_VERSION = "1.2.1";
+const CARD_VERSION = "1.3.0";
 
 const STATUS_COLORS = {
   idle:      "#4caf50",
@@ -246,6 +246,29 @@ class SmartSprinklerCard extends HTMLElement {
     return timeStr.substring(0, 5);
   }
 
+  _weatherIcon(condition) {
+    const map = {
+      "sunny": "mdi:weather-sunny", "clear-night": "mdi:weather-night",
+      "partlycloudy": "mdi:weather-partly-cloudy", "cloudy": "mdi:weather-cloudy",
+      "rainy": "mdi:weather-rainy", "pouring": "mdi:weather-pouring",
+      "snowy": "mdi:weather-snowy", "fog": "mdi:weather-fog",
+      "hail": "mdi:weather-hail", "lightning": "mdi:weather-lightning",
+      "lightning-rainy": "mdi:weather-lightning-rainy", "windy": "mdi:weather-windy",
+      "exceptional": "mdi:alert-circle-outline",
+    };
+    return map[condition] || "mdi:weather-partly-cloudy";
+  }
+
+  _renderForecastDay(label, fc) {
+    const icon = this._weatherIcon(fc.condition);
+    const temps = [];
+    if (fc.temp_high != null) temps.push(`${Math.round(fc.temp_high)}°`);
+    if (fc.temp_low != null) temps.push(`${Math.round(fc.temp_low)}°`);
+    const tempStr = temps.join("/");
+    const precip = fc.precipitation ? `<span class="wx-precip">${fc.precipitation}mm</span>` : "";
+    return `<div class="wx-day"><ha-icon icon="${icon}"></ha-icon><b>${label}</b> ${tempStr} ${precip}</div>`;
+  }
+
   _svc(domain, service, data) { this._hass?.callService(domain, service, data); }
 
   // ── Optimistic click handlers ─────────────────────────────────────────────
@@ -404,6 +427,27 @@ class SmartSprinklerCard extends HTMLElement {
         .banner.weather { background: #fff3e0; color: #e65100; }
         .banner.hidden  { display: none; }
 
+        .weather-section {
+          padding: 8px 16px 6px;
+          border-bottom: 1px solid var(--divider-color, #e0e0e0);
+        }
+        .weather-section.hidden { display: none; }
+        .weather-current {
+          display: flex; align-items: center; gap: 10px; margin-bottom: 6px;
+        }
+        .weather-current .wx-icon { --mdc-icon-size: 28px; color: var(--primary-color); }
+        .weather-current .wx-temp { font-size: 1.3em; font-weight: 600; }
+        .weather-current .wx-cond { font-size: 0.82em; color: var(--secondary-text-color); text-transform: capitalize; }
+        .weather-current .wx-detail { font-size: 0.75em; color: var(--secondary-text-color); }
+        .weather-forecast {
+          display: flex; gap: 16px; font-size: 0.77em; color: var(--secondary-text-color);
+        }
+        .weather-forecast .wx-day {
+          display: flex; align-items: center; gap: 6px;
+        }
+        .weather-forecast .wx-day ha-icon { --mdc-icon-size: 16px; }
+        .weather-forecast .wx-precip { color: #1565c0; font-weight: 500; }
+
         .zones-container { padding: 8px; display: flex; flex-direction: column; gap: 6px; }
 
         .zone-card {
@@ -518,12 +562,25 @@ class SmartSprinklerCard extends HTMLElement {
           <div class="info-item" id="infoWaterToday">
             <ha-icon icon="mdi:water-percent"></ha-icon><span></span>
           </div>
+          <div class="info-item" id="infoNextRun" style="display:none">
+            <ha-icon icon="mdi:clock-outline"></ha-icon><span></span>
+          </div>
           <div class="info-item" id="infoValveDelay" style="display:none">
             <ha-icon icon="mdi:timer-sand"></ha-icon><span></span>
           </div>
           <div class="info-item" id="infoActiveZones" style="display:none">
             <ha-icon icon="mdi:sprinkler"></ha-icon><span></span>
           </div>
+        </div>
+
+        <div class="weather-section hidden" id="weatherSection">
+          <div class="weather-current">
+            <ha-icon class="wx-icon" id="wxIcon" icon="mdi:weather-sunny"></ha-icon>
+            <span class="wx-temp" id="wxTemp"></span>
+            <span class="wx-cond" id="wxCond"></span>
+            <span class="wx-detail" id="wxDetail"></span>
+          </div>
+          <div class="weather-forecast" id="wxForecast"></div>
         </div>
 
         <div class="banner rain hidden" id="rainBanner">
@@ -619,6 +676,18 @@ class SmartSprinklerCard extends HTMLElement {
       }
     }
 
+    // Next run
+    const nextRunEl = this.shadowRoot.getElementById("infoNextRun");
+    if (nextRunEl) {
+      const nextRun = attrs.next_run;
+      if (nextRun) {
+        nextRunEl.style.display = "flex";
+        nextRunEl.querySelector("span").textContent = `Next: ${this._fmtDate(nextRun)}`;
+      } else {
+        nextRunEl.style.display = "none";
+      }
+    }
+
     const activeEl = this.shadowRoot.getElementById("infoActiveZones");
     if (activeEl) {
       const active = attrs.active_zones || [];
@@ -627,6 +696,34 @@ class SmartSprinklerCard extends HTMLElement {
         activeEl.querySelector("span").textContent = `${active.length} zone${active.length > 1 ? "s" : ""} active`;
       } else {
         activeEl.style.display = "none";
+      }
+    }
+
+    // Weather section
+    const wxSection = this.shadowRoot.getElementById("weatherSection");
+    if (wxSection) {
+      const wx = attrs.weather;
+      if (wx && wx.current_temp != null) {
+        wxSection.classList.remove("hidden");
+        this.shadowRoot.getElementById("wxIcon").setAttribute("icon", this._weatherIcon(wx.current_condition));
+        this.shadowRoot.getElementById("wxTemp").textContent = `${Math.round(wx.current_temp)}°C`;
+        this.shadowRoot.getElementById("wxCond").textContent = (wx.current_condition || "").replace(/_/g, " ");
+        const details = [];
+        if (wx.current_humidity != null) details.push(`${wx.current_humidity}%`);
+        if (wx.current_wind != null) details.push(`${wx.current_wind} km/h`);
+        this.shadowRoot.getElementById("wxDetail").textContent = details.join(" · ");
+
+        const fcEl = this.shadowRoot.getElementById("wxForecast");
+        const fcParts = [];
+        if (wx.today) {
+          fcParts.push(this._renderForecastDay("Today", wx.today));
+        }
+        if (wx.tomorrow) {
+          fcParts.push(this._renderForecastDay("Tomorrow", wx.tomorrow));
+        }
+        fcEl.innerHTML = fcParts.join("");
+      } else {
+        wxSection.classList.add("hidden");
       }
     }
 

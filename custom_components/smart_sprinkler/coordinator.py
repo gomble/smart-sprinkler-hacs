@@ -180,6 +180,44 @@ class SprinklerCoordinator(DataUpdateCoordinator):
 
         return False, None
 
+    def get_weather_summary(self) -> dict | None:
+        """Return current weather data for display in the card."""
+        weather_entity = self.config.get("weather_entity")
+        if not weather_entity:
+            return None
+        state = self.hass.states.get(weather_entity)
+        if state is None:
+            return None
+        attrs = state.attributes
+        forecast = attrs.get("forecast") or []
+        today_fc = forecast[0] if len(forecast) > 0 else {}
+        tomorrow_fc = forecast[1] if len(forecast) > 1 else {}
+        return {
+            "current_temp": attrs.get("temperature"),
+            "current_condition": state.state,
+            "current_humidity": attrs.get("humidity"),
+            "current_wind": attrs.get("wind_speed"),
+            "today": {
+                "condition": today_fc.get("condition"),
+                "temp_high": today_fc.get("temperature"),
+                "temp_low": today_fc.get("templow"),
+                "precipitation": today_fc.get("precipitation", 0),
+            } if today_fc else None,
+            "tomorrow": {
+                "condition": tomorrow_fc.get("condition"),
+                "temp_high": tomorrow_fc.get("temperature"),
+                "temp_low": tomorrow_fc.get("templow"),
+                "precipitation": tomorrow_fc.get("precipitation", 0),
+            } if tomorrow_fc else None,
+        }
+
+    def get_next_run(self) -> str | None:
+        """Return the earliest next_run across all zones as ISO string."""
+        runs = [z.next_run for z in self.zones.values() if z.next_run and z.is_enabled]
+        if not runs:
+            return None
+        return min(runs).isoformat()
+
     # ------------------------------------------------------------------
     # Public zone control
     # ------------------------------------------------------------------
