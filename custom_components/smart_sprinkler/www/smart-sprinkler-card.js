@@ -520,97 +520,238 @@ class SmartSprinklerCard extends HTMLElement {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Visual editor — shown in the Lovelace card picker UI
+// Visual editor — build DOM once, patch values on subsequent hass updates
 // ─────────────────────────────────────────────────────────────────────────────
 
 class SmartSprinklerCardEditor extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: "open" });
-    this._config = {};
-    this._hass   = null;
+    this._config   = {};
+    this._hass     = null;
+    this._built    = false;
   }
 
   setConfig(config) {
-    this._config = config;
-    this._render();
+    this._config = { title: "Smart Sprinkler", ...config };
+    if (this._built) {
+      this._patchValues();
+      this._renderZoneRows();
+    }
   }
 
   set hass(hass) {
     this._hass = hass;
-    this._render();
+    if (!this._built) {
+      this._buildDOM();
+    } else {
+      this._updateEntityOptions();
+      this._renderZoneRows();
+    }
   }
 
-  _render() {
+  // ── Build once ────────────────────────────────────────────────────────────
+
+  _buildDOM() {
     if (!this._hass) return;
-
-    const STATUS_STATES = new Set(["idle","waiting","running","stopping","rain_delay","suspended","error"]);
-    const entities = this._hass.entities || {};
-    const states   = this._hass.states  || {};
-
-    // Collect candidate status sensors: platform-based first, then attribute-based fallback
-    const candidateIds = new Set();
-    for (const [id, entry] of Object.entries(entities)) {
-      if (entry.platform === "smart_sprinkler" && id.startsWith("sensor.") &&
-          STATUS_STATES.has(states[id]?.state)) {
-        candidateIds.add(id);
-      }
-    }
-    if (candidateIds.size === 0) {
-      for (const [id, s] of Object.entries(states)) {
-        if (id.startsWith("sensor.") && STATUS_STATES.has(s.state) &&
-            s.attributes.active_zones !== undefined) {
-          candidateIds.add(id);
-        }
-      }
-    }
-    // Also always include the currently configured entity so it stays selectable
-    if (this._config.entity) candidateIds.add(this._config.entity);
-
-    const sensorOptions = [...candidateIds]
-      .map(id => `<option value="${id}" ${id === this._config.entity ? "selected" : ""}>${id}</option>`)
-      .join("");
 
     this.shadowRoot.innerHTML = `
       <style>
-        .editor { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
-        label   { font-size: 0.9em; font-weight: 500; margin-bottom: 3px; display: block; }
-        input, select {
-          width: 100%; box-sizing: border-box;
-          padding: 8px 10px; border-radius: 6px;
-          border: 1px solid var(--divider-color, #ccc);
-          background: var(--card-background-color, #fff);
-          color: var(--primary-text-color);
-          font-size: 0.9em;
+        :host { display: block; }
+        .editor { padding: 4px 0; }
+        .section-title {
+          font-size: 0.78em; font-weight: 700; text-transform: uppercase;
+          letter-spacing: 0.06em; color: var(--secondary-text-color);
+          padding: 12px 0 6px; margin: 0;
         }
-        .hint { font-size: 0.78em; color: var(--secondary-text-color); margin-top: 3px; }
+        .field { margin-bottom: 12px; }
+        label  { font-size: 0.88em; font-weight: 500; display: block; margin-bottom: 4px; }
+        .hint  { font-size: 0.76em; color: var(--secondary-text-color); margin-top: 3px; }
+
+        select, input[type=text], input[type=number] {
+          width: 100%; box-sizing: border-box;
+          padding: 8px 10px; border-radius: 8px;
+          border: 1px solid var(--divider-color, #ccc);
+          background: var(--secondary-background-color, #f5f5f5);
+          color: var(--primary-text-color);
+          font-size: 0.9em; font-family: inherit;
+          appearance: auto;
+        }
+        select:focus, input:focus {
+          outline: 2px solid var(--primary-color); border-color: transparent;
+        }
+
+        .zone-rows { display: flex; flex-direction: column; gap: 8px; }
+        .zone-row {
+          background: var(--secondary-background-color, #f5f5f5);
+          border-radius: 10px; padding: 10px 12px;
+          display: flex; flex-direction: column; gap: 6px;
+        }
+        .zone-row-header { font-weight: 600; font-size: 0.88em; }
+        .zone-field { display: flex; align-items: center; gap: 8px; }
+        .zone-field label { margin: 0; min-width: 100px; font-size: 0.82em; flex-shrink: 0; }
+        .zone-field input { flex: 1; padding: 5px 8px; font-size: 0.85em; }
+        .no-zones { font-size: 0.82em; color: var(--secondary-text-color); padding: 4px 0; }
       </style>
       <div class="editor">
-        <div>
+        <p class="section-title">General</p>
+
+        <div class="field">
           <label>Status Sensor Entity</label>
           <select id="entitySelect">
-            <option value="">— select entity —</option>
-            ${sensorOptions}
+            <option value="">— loading… —</option>
           </select>
-          <div class="hint">e.g. sensor.my_garden_status</div>
+          <div class="hint">Auto-detected from Smart Sprinkler integration</div>
         </div>
-        <div>
+
+        <div class="field">
           <label>Card Title</label>
-          <input id="titleInput" type="text" value="${this._config.title ?? "Smart Sprinkler"}">
+          <input id="titleInput" type="text" placeholder="Smart Sprinkler">
+        </div>
+
+        <p class="section-title">Zone Settings (Duration Override)</p>
+        <div class="hint" style="margin-bottom:8px">
+          Leave blank to use the default duration set in the integration options.
+        </div>
+        <div class="zone-rows" id="zoneRows">
+          <div class="no-zones">Loading zones…</div>
         </div>
       </div>
     `;
 
+    // Attach listeners ONCE — they read current DOM values, never re-register
     this.shadowRoot.getElementById("entitySelect").addEventListener("change", e => {
-      this._fire({ ...this._config, entity: e.target.value });
+      this._config = { ...this._config, entity: e.target.value };
+      this._renderZoneRows();
+      this._fire();
     });
-    this.shadowRoot.getElementById("titleInput").addEventListener("change", e => {
-      this._fire({ ...this._config, title: e.target.value });
+
+    this.shadowRoot.getElementById("titleInput").addEventListener("input", e => {
+      this._config = { ...this._config, title: e.target.value };
+      this._fire();
     });
+
+    // Zone duration changes — event delegation on the container
+    this.shadowRoot.getElementById("zoneRows").addEventListener("change", e => {
+      const input = e.target.closest("input[data-zone-id]");
+      if (!input) return;
+      const zoneId = input.dataset.zoneId;
+      const val    = parseInt(input.value);
+      const overrides = { ...(this._config.zone_durations || {}) };
+      if (val > 0) overrides[zoneId] = val;
+      else         delete overrides[zoneId];
+      this._config = { ...this._config, zone_durations: overrides };
+      this._fire();
+    });
+
+    this._built = true;
+    this._patchValues();
+    this._updateEntityOptions();
+    this._renderZoneRows();
   }
 
-  _fire(config) {
-    this.dispatchEvent(new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true }));
+  // ── Patch values into existing DOM (no innerHTML replacement) ─────────────
+
+  _patchValues() {
+    const titleEl = this.shadowRoot.getElementById("titleInput");
+    if (titleEl) titleEl.value = this._config.title ?? "Smart Sprinkler";
+  }
+
+  _updateEntityOptions() {
+    const sel = this.shadowRoot.getElementById("entitySelect");
+    if (!sel || !this._hass) return;
+
+    const candidates = this._collectCandidates();
+    if (this._config.entity && !candidates.includes(this._config.entity)) {
+      candidates.push(this._config.entity);
+    }
+
+    // Rebuild options without touching the rest of the DOM
+    sel.innerHTML = `<option value="">— select entity —</option>` +
+      candidates.map(id =>
+        `<option value="${id}" ${id === this._config.entity ? "selected" : ""}>${id}</option>`
+      ).join("");
+  }
+
+  _renderZoneRows() {
+    const container = this.shadowRoot.getElementById("zoneRows");
+    if (!container || !this._hass) return;
+
+    const zones    = this._discoverZones();
+    const override = this._config.zone_durations || {};
+
+    if (!zones.length) {
+      container.innerHTML = `<div class="no-zones">No zones found yet — make sure the integration is loaded.</div>`;
+      return;
+    }
+
+    container.innerHTML = zones.map(z => `
+      <div class="zone-row">
+        <div class="zone-row-header">${z.name}</div>
+        <div class="zone-field">
+          <label>Duration (s)</label>
+          <input type="number" min="60" max="7200" step="60"
+            data-zone-id="${z.zone_id}"
+            placeholder="${z.default_duration} (default)"
+            value="${override[z.zone_id] || ""}">
+        </div>
+      </div>`
+    ).join("");
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+
+  _collectCandidates() {
+    const STATUS_STATES = new Set(["idle","waiting","running","stopping","rain_delay","suspended","error"]);
+    const entities = this._hass.entities || {};
+    const states   = this._hass.states  || {};
+    const results  = new Set();
+
+    for (const [id, entry] of Object.entries(entities)) {
+      if (entry.platform === "smart_sprinkler" && id.startsWith("sensor.") &&
+          STATUS_STATES.has(states[id]?.state)) results.add(id);
+    }
+    if (!results.size) {
+      for (const [id, s] of Object.entries(states)) {
+        if (id.startsWith("sensor.") && STATUS_STATES.has(s.state) &&
+            s.attributes.active_zones !== undefined) results.add(id);
+      }
+    }
+    return [...results];
+  }
+
+  _discoverZones() {
+    if (!this._hass) return [];
+    const entities  = this._hass.entities || {};
+    const states    = this._hass.states   || {};
+    const entityCfg = this._config.entity;
+
+    const statusEntry = entityCfg ? entities[entityCfg] : null;
+    const deviceId    = statusEntry?.device_id;
+
+    let candidates;
+    if (deviceId) {
+      candidates = Object.values(entities).filter(e =>
+        e.device_id === deviceId && e.entity_id.startsWith("switch."));
+    } else {
+      candidates = Object.values(entities).filter(e =>
+        e.platform === "smart_sprinkler" && e.entity_id.startsWith("switch."));
+    }
+
+    return candidates
+      .filter(e => states[e.entity_id]?.attributes?.zone_id)
+      .map(e => ({
+        zone_id:          states[e.entity_id].attributes.zone_id,
+        name:             states[e.entity_id].attributes.friendly_name || e.entity_id,
+        default_duration: states[e.entity_id].attributes.default_duration_seconds || 600,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  _fire() {
+    this.dispatchEvent(new CustomEvent("config-changed", {
+      detail: { config: this._config }, bubbles: true, composed: true,
+    }));
   }
 }
 
