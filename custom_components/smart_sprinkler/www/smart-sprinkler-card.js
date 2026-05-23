@@ -6,7 +6,7 @@
  * Only required config: entity (the status sensor, e.g. sensor.my_garden_status)
  */
 
-const CARD_VERSION = "1.1.0";
+const CARD_VERSION = "1.1.1";
 
 const STATUS_COLORS = {
   idle:      "#4caf50",
@@ -35,7 +35,7 @@ class SmartSprinklerCard extends HTMLElement {
   // ── HA lifecycle ──────────────────────────────────────────────────────────
 
   setConfig(config) {
-    if (!config.entity) throw new Error("Please define a status sensor entity (entity:)");
+    // entity is optional — auto-detected from hass on first render
     this._config = { title: "Smart Sprinkler", ...config };
     this._built = false;
     this._buildDOM();
@@ -43,11 +43,42 @@ class SmartSprinklerCard extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
+    // Auto-detect entity if not set yet
+    if (!this._config.entity) {
+      const found = this._autoDetectStatusEntity();
+      if (found) this._config = { ...this._config, entity: found };
+    }
     if (!this._built) {
       this._buildDOM();
     } else {
       this._patch();
     }
+  }
+
+  // Find the first smart_sprinkler status sensor in the registry
+  _autoDetectStatusEntity() {
+    if (!this._hass) return null;
+    const entities = this._hass.entities || {};
+    const states   = this._hass.states  || {};
+
+    // Look for entities from smart_sprinkler platform that are sensors with a status-like state
+    const STATUS_STATES = new Set(["idle","waiting","running","stopping","rain_delay","suspended","error"]);
+
+    for (const [id, entry] of Object.entries(entities)) {
+      if (entry.platform === "smart_sprinkler" && id.startsWith("sensor.")) {
+        const state = states[id]?.state;
+        if (STATUS_STATES.has(state)) return id;
+      }
+    }
+
+    // Broader fallback: any sensor whose state is a known status value
+    for (const [id, s] of Object.entries(states)) {
+      if (id.startsWith("sensor.") && STATUS_STATES.has(s.state) &&
+          s.attributes.active_zones !== undefined) {
+        return id;
+      }
+    }
+    return null;
   }
 
   getCardSize() {
@@ -60,8 +91,18 @@ class SmartSprinklerCard extends HTMLElement {
     return document.createElement("smart-sprinkler-card-editor");
   }
 
-  static getStubConfig() {
-    return { entity: "sensor.my_garden_status", title: "Smart Sprinkler" };
+  static getStubConfig(hass) {
+    // Try to auto-detect a status sensor when card is added from picker
+    const entities = hass?.entities || {};
+    const states   = hass?.states  || {};
+    const STATUS_STATES = new Set(["idle","waiting","running","stopping","rain_delay","suspended","error"]);
+
+    for (const [id, entry] of Object.entries(entities)) {
+      if (entry.platform === "smart_sprinkler" && id.startsWith("sensor.")) {
+        if (STATUS_STATES.has(states[id]?.state)) return { entity: id, title: "Smart Sprinkler" };
+      }
+    }
+    return { entity: "", title: "Smart Sprinkler" };
   }
 
   // ── Zone discovery ────────────────────────────────────────────────────────
@@ -110,6 +151,31 @@ class SmartSprinklerCard extends HTMLElement {
 
   _statusState() {
     return this._hass?.states?.[this._config.entity] ?? null;
+  }
+
+  _findAllStatusCandidates() {
+    if (!this._hass) return [];
+    const STATUS_STATES = new Set(["idle","waiting","running","stopping","rain_delay","suspended","error"]);
+    const entities = this._hass.entities || {};
+    const states   = this._hass.states  || {};
+    const results  = [];
+
+    // Platform-based (most reliable)
+    for (const [id, entry] of Object.entries(entities)) {
+      if (entry.platform === "smart_sprinkler" && id.startsWith("sensor.")) {
+        if (STATUS_STATES.has(states[id]?.state)) results.push(id);
+      }
+    }
+    // Attribute-based fallback (works even without entity registry access)
+    if (results.length === 0) {
+      for (const [id, s] of Object.entries(states)) {
+        if (id.startsWith("sensor.") && STATUS_STATES.has(s.state) &&
+            s.attributes.active_zones !== undefined) {
+          results.push(id);
+        }
+      }
+    }
+    return results;
   }
 
   _fmt(seconds) {
@@ -164,10 +230,50 @@ class SmartSprinklerCard extends HTMLElement {
 
     const statusEnt = this._statusState();
     if (!statusEnt) {
-      this.shadowRoot.innerHTML =
-        `<ha-card><div style="padding:16px;color:var(--error-color)">
-          Entity not found: ${this._config.entity}
-        </div></ha-card>`;
+      // Build a helpful selector screen showing all candidate entities
+      const candidates = this._findAllStatusCandidates();
+      const rows = candidates.length
+        ? candidates.map(id => `
+            <div class="candidate" data-entity="${id}">
+              <span>${id}</span>
+              <span class="cand-state">${this._hass.states[id]?.state ?? ""}</span>
+            </div>`).join("")
+        : `<div style="color:var(--secondary-text-color);font-size:0.85em">
+             No Smart Sprinkler status sensors found. Make sure the integration is loaded.
+           </div>`;
+
+      this.shadowRoot.innerHTML = `
+        <style>
+          ha-card { padding: 16px; }
+          h3 { margin: 0 0 10px; font-size: 1em; }
+          .candidate {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 9px 12px; border-radius: 8px; margin-bottom: 6px;
+            background: var(--secondary-background-color, #f5f5f5);
+            cursor: pointer; font-size: 0.88em;
+          }
+          .candidate:hover { background: var(--primary-color); color: #fff; }
+          .candidate:hover .cand-state { color: rgba(255,255,255,0.7); }
+          .cand-state { font-size: 0.82em; color: var(--secondary-text-color); }
+          p { font-size: 0.82em; color: var(--secondary-text-color); margin: 0 0 12px; }
+        </style>
+        <ha-card>
+          <h3>Smart Sprinkler — Select status sensor</h3>
+          <p>Click the entity to use for this card, or set it via the visual editor (pencil icon).</p>
+          ${rows}
+        </ha-card>`;
+
+      this.shadowRoot.querySelectorAll(".candidate").forEach(el => {
+        el.addEventListener("click", () => {
+          this._config = { ...this._config, entity: el.dataset.entity };
+          this._built = false;
+          this._buildDOM();
+          // Persist the selection via config-changed event
+          this.dispatchEvent(new CustomEvent("config-changed", {
+            detail: { config: this._config }, bubbles: true, composed: true,
+          }));
+        });
+      });
       return;
     }
 
@@ -438,14 +544,31 @@ class SmartSprinklerCardEditor extends HTMLElement {
   _render() {
     if (!this._hass) return;
 
-    // Find all smart_sprinkler status sensors for the dropdown
-    const sensorOptions = Object.entries(this._hass.states)
-      .filter(([id, s]) =>
-        id.startsWith("sensor.") &&
-        s.attributes.friendly_name?.toLowerCase().includes("status") &&
-        (this._hass.entities?.[id]?.platform === "smart_sprinkler" || true)
-      )
-      .map(([id]) => `<option value="${id}" ${id === this._config.entity ? "selected" : ""}>${id}</option>`)
+    const STATUS_STATES = new Set(["idle","waiting","running","stopping","rain_delay","suspended","error"]);
+    const entities = this._hass.entities || {};
+    const states   = this._hass.states  || {};
+
+    // Collect candidate status sensors: platform-based first, then attribute-based fallback
+    const candidateIds = new Set();
+    for (const [id, entry] of Object.entries(entities)) {
+      if (entry.platform === "smart_sprinkler" && id.startsWith("sensor.") &&
+          STATUS_STATES.has(states[id]?.state)) {
+        candidateIds.add(id);
+      }
+    }
+    if (candidateIds.size === 0) {
+      for (const [id, s] of Object.entries(states)) {
+        if (id.startsWith("sensor.") && STATUS_STATES.has(s.state) &&
+            s.attributes.active_zones !== undefined) {
+          candidateIds.add(id);
+        }
+      }
+    }
+    // Also always include the currently configured entity so it stays selectable
+    if (this._config.entity) candidateIds.add(this._config.entity);
+
+    const sensorOptions = [...candidateIds]
+      .map(id => `<option value="${id}" ${id === this._config.entity ? "selected" : ""}>${id}</option>`)
       .join("");
 
     this.shadowRoot.innerHTML = `
