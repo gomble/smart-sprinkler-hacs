@@ -9,7 +9,7 @@ SMART_SPRINKLER_CARDS = [
     {
         "name": "Smart Sprinkler Card",
         "filename": "smart-sprinkler-card.js",
-        "version": "1.0.0",
+        "version": "1.3.0",
     }
 ]
 
