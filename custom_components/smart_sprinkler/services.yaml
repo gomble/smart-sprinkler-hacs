@@ -1,0 +1,48 @@
+start_zone:
+  name: Start Zone
+  description: Start a specific irrigation zone for a given duration.
+  fields:
+    zone_id:
+      name: Zone ID
+      description: The ID of the zone to start.
+      required: true
+      selector:
+        text:
+    duration:
+      name: Duration
+      description: Duration in seconds (1–7200).
+      default: 600
+      selector:
+        number:
+          min: 1
+          max: 7200
+          unit_of_measurement: seconds
+
+stop_zone:
+  name: Stop Zone
+  description: Stop a specific irrigation zone.
+  fields:
+    zone_id:
+      name: Zone ID
+      description: The ID of the zone to stop.
+      required: true
+      selector:
+        text:
+
+stop_all:
+  name: Stop All
+  description: Stop all running zones immediately.
+
+set_rain_delay:
+  name: Set Rain Delay
+  description: Pause irrigation for a number of days.
+  fields:
+    rain_delay_days:
+      name: Days
+      description: Number of days to delay (1–14).
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 14
+          unit_of_measurement: days
