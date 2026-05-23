@@ -6,7 +6,7 @@
  * Only required config: entity (the status sensor, e.g. sensor.my_garden_status)
  */
 
-const CARD_VERSION = "1.2.0";
+const CARD_VERSION = "1.2.1";
 
 const STATUS_COLORS = {
   idle:      "#4caf50",
@@ -43,6 +43,7 @@ class SmartSprinklerCard extends HTMLElement {
     this._built   = false;
     this._pending = {};
     this._expanded = {};  // zone_id → true if schedule section is expanded
+    this._panelBuilt = new Set(); // zone_ids whose schedule panel DOM has been rendered
   }
 
   // ── HA lifecycle ──────────────────────────────────────────────────────────
@@ -198,6 +199,8 @@ class SmartSprinklerCard extends HTMLElement {
         result.weekdays = ent.entity_id;
       if (ent.entity_id.includes("interval_days") && ent.entity_id.includes(prefix))
         result.intervalDays = ent.entity_id;
+      if (ent.entity_id.includes("duration") && !ent.entity_id.includes("cycle") && ent.entity_id.includes(prefix))
+        result.duration = ent.entity_id;
     }
     return result;
   }
@@ -279,12 +282,17 @@ class SmartSprinklerCard extends HTMLElement {
 
     if (field === "mode" && ents.scheduleMode) {
       this._svc("select", "select_option", { entity_id: ents.scheduleMode, option: value });
+      // Rebuild panel on mode change (shows/hides weekdays/interval)
+      this._panelBuilt.delete(zoneId);
+      this._patch();
     } else if (field === "time" && ents.startTime) {
       this._svc("time", "set_value", { entity_id: ents.startTime, time: value });
     } else if (field === "weekdays" && ents.weekdays) {
       this._svc("select", "select_option", { entity_id: ents.weekdays, option: value });
     } else if (field === "interval" && ents.intervalDays) {
       this._svc("number", "set_value", { entity_id: ents.intervalDays, value: parseFloat(value) });
+    } else if (field === "duration" && ents.duration) {
+      this._svc("number", "set_value", { entity_id: ents.duration, value: parseFloat(value) });
     }
   }
 
@@ -537,6 +545,7 @@ class SmartSprinklerCard extends HTMLElement {
       if (schedBtn) {
         const zoneId = schedBtn.dataset.zoneId;
         this._expanded[zoneId] = !this._expanded[zoneId];
+        if (!this._expanded[zoneId]) this._panelBuilt.delete(zoneId);
         this._patch();
       }
       if (chipBtn) {
@@ -722,11 +731,18 @@ class SmartSprinklerCard extends HTMLElement {
       const schedToggle = card.querySelector(".btn-schedule-toggle");
       schedToggle.classList.toggle("active", expanded);
 
-      // Schedule panel
+      // Schedule panel — only build once, then leave DOM alone
       const panel = card.querySelector(".schedule-panel");
       panel.classList.toggle("open", expanded);
-      if (expanded) {
+      if (expanded && !this._panelBuilt.has(zone.zone_id)) {
         this._renderSchedulePanel(panel, zone);
+        this._panelBuilt.add(zone.zone_id);
+      } else if (expanded) {
+        // Update only read-only info (next/last run) without touching inputs
+        const nextEl = panel.querySelector(".sched-next-run");
+        if (nextEl) nextEl.textContent = zone.nextRun ? `Next run: ${this._fmtDate(zone.nextRun)}` : "";
+        const lastEl = panel.querySelector(".sched-last-run");
+        if (lastEl) lastEl.textContent = zone.last_run ? `Last run: ${this._fmtDate(zone.last_run)}` : "";
       }
     });
 
@@ -741,6 +757,8 @@ class SmartSprinklerCard extends HTMLElement {
     const weekdays = (zone.weekdays || "").split(",").filter(Boolean);
     const interval = zone.intervalDays || 2;
     const zoneId = zone.zone_id;
+    const overrides = this._config.zone_durations || {};
+    const duration = overrides[zoneId] || zone.default_duration;
 
     const modeOptions = Object.entries(SCHEDULE_MODE_LABELS)
       .map(([val, lbl]) => `<option value="${val}" ${val === mode ? "selected" : ""}>${lbl}</option>`)
@@ -762,6 +780,11 @@ class SmartSprinklerCard extends HTMLElement {
         <label>Time</label>
         <input type="time" value="${time}" data-zone-id="${zoneId}" data-field="time">
       </div>
+      <div class="sched-row">
+        <label>Duration</label>
+        <input type="number" min="60" max="7200" step="60" value="${duration}"
+          data-zone-id="${zoneId}" data-field="duration"> sec
+      </div>
       ${showWeekdays ? `<div class="sched-row">
         <label>Days</label>
         <div class="weekday-chips">${weekdayChips}</div>
@@ -770,8 +793,8 @@ class SmartSprinklerCard extends HTMLElement {
         <label>Every</label>
         <input type="number" min="1" max="14" value="${interval}" data-zone-id="${zoneId}" data-field="interval"> days
       </div>` : ""}
-      ${zone.nextRun ? `<div class="sched-next">Next run: ${this._fmtDate(zone.nextRun)}</div>` : ""}
-      ${zone.last_run ? `<div class="sched-next">Last run: ${this._fmtDate(zone.last_run)}</div>` : ""}
+      <div class="sched-next sched-next-run">${zone.nextRun ? `Next run: ${this._fmtDate(zone.nextRun)}` : ""}</div>
+      <div class="sched-next sched-last-run">${zone.last_run ? `Last run: ${this._fmtDate(zone.last_run)}` : ""}</div>
     `;
   }
 }
