@@ -6,7 +6,7 @@
  * Only required config: entity (the status sensor, e.g. sensor.my_garden_status)
  */
 
-const CARD_VERSION = "1.1.1";
+const CARD_VERSION = "1.1.2";
 
 const STATUS_COLORS = {
   idle:      "#4caf50",
@@ -544,9 +544,6 @@ class SmartSprinklerCardEditor extends HTMLElement {
     this._hass = hass;
     if (!this._built) {
       this._buildDOM();
-    } else {
-      this._updateEntityOptions();
-      this._renderZoneRows();
     }
   }
 
