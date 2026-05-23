@@ -6,7 +6,7 @@
  * Only required config: entity (the status sensor, e.g. sensor.my_garden_status)
  */
 
-const CARD_VERSION = "1.1.2";
+const CARD_VERSION = "1.1.3";
 
 const STATUS_COLORS = {
   idle:      "#4caf50",
@@ -198,12 +198,13 @@ class SmartSprinklerCard extends HTMLElement {
   // ── Optimistic click handlers ─────────────────────────────────────────────
 
   _onRun(zone) {
-    // Immediately flip switch to ON in pending state so UI feels instant
     this._pending[zone.zone_id] = "on";
     this._patch();
+    const overrides = this._config.zone_durations || {};
+    const duration  = overrides[zone.zone_id] || zone.default_duration;
     this._svc("smart_sprinkler", "start_zone", {
       zone_id:  zone.zone_id,
-      duration: zone.default_duration,
+      duration: duration,
     });
     // Clear optimistic state after 5 s (HA will have confirmed by then)
     setTimeout(() => { delete this._pending[zone.zone_id]; this._patch(); }, 5000);
@@ -466,14 +467,15 @@ class SmartSprinklerCard extends HTMLElement {
         ? this._pending[zone.zone_id] === "on"
         : zone.is_on;
 
+      const overrides = this._config.zone_durations || {};
+      const duration  = overrides[zone.zone_id] || zone.default_duration;
+      const remaining = zone.remaining_seconds;
+
       const meta = isOn
-        ? `Running — ${this._fmt(zone.remaining_seconds)} remaining`
+        ? `Running — ${this._fmt(remaining)} remaining`
         : zone.water_time_today > 0
         ? `Today: ${this._fmt(zone.water_time_today)}`
-        : `Duration: ${this._fmt(zone.default_duration)}`;
-
-      const duration  = zone.default_duration;
-      const remaining = zone.remaining_seconds;
+        : `Duration: ${this._fmt(duration)}`;
       const progress  = (isOn && duration > 0)
         ? Math.max(0, Math.min(100, ((duration - remaining) / duration) * 100))
         : 0;
