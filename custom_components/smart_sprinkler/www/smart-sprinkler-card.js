@@ -6,7 +6,7 @@
  * Only required config: entity (the status sensor, e.g. sensor.my_garden_status)
  */
 
-const CARD_VERSION = "1.1.3";
+const CARD_VERSION = "1.1.4";
 
 const STATUS_COLORS = {
   idle:      "#4caf50",
@@ -447,7 +447,7 @@ class SmartSprinklerCard extends HTMLElement {
       wxBanner.classList.add("hidden");
     }
 
-    // Zones — rebuild zone rows (lightweight, no listeners attached inline)
+    // Zones — in-place updates to avoid destroying buttons mid-click
     const container = this.shadowRoot.getElementById("zonesContainer");
     if (!container) return;
 
@@ -460,8 +460,6 @@ class SmartSprinklerCard extends HTMLElement {
       return;
     }
 
-    // Reconcile rows: reuse existing, add/remove as needed
-    const existingRows = Array.from(container.children);
     zones.forEach((zone, i) => {
       const isOn = this._pending[zone.zone_id] !== undefined
         ? this._pending[zone.zone_id] === "on"
@@ -480,37 +478,65 @@ class SmartSprinklerCard extends HTMLElement {
         ? Math.max(0, Math.min(100, ((duration - remaining) / duration) * 100))
         : 0;
 
-      // Minimal zone data to embed in button (avoid circular refs)
       const zoneData = JSON.stringify({
         zone_id: zone.zone_id,
         default_duration: zone.default_duration,
       });
 
-      const actionBtn = isOn
-        ? `<button class="btn btn-stop" data-action="stop" data-zone='${zoneData}'>
-             <ha-icon icon="mdi:stop"></ha-icon>Stop
-           </button>`
-        : `<button class="btn btn-run" data-action="run" data-zone='${zoneData}'>
-             <ha-icon icon="mdi:play"></ha-icon>Run
-           </button>`;
+      let row = container.children[i];
 
-      const html = `
-        <div class="zone-row ${isOn ? "active" : ""}">
-          <ha-icon class="zone-icon ${isOn ? "active" : ""}" icon="${isOn ? "mdi:water" : "mdi:sprinkler"}"></ha-icon>
+      if (!row || row.dataset.zoneId !== zone.zone_id) {
+        // Create row for the first time
+        const div = document.createElement("div");
+        div.className = `zone-row ${isOn ? "active" : ""}`;
+        div.dataset.zoneId = zone.zone_id;
+        div.innerHTML = `
+          <ha-icon class="zone-icon" icon="mdi:sprinkler"></ha-icon>
           <div class="zone-info">
-            <div class="zone-name">${zone.name}</div>
-            <div class="zone-meta">${meta}</div>
-            <div class="zone-progress ${isOn ? "visible" : ""}">
-              <div class="zone-progress-bar" style="width:${progress}%"></div>
+            <div class="zone-name"></div>
+            <div class="zone-meta"></div>
+            <div class="zone-progress">
+              <div class="zone-progress-bar"></div>
             </div>
           </div>
-          <div class="zone-actions">${actionBtn}</div>
-        </div>`;
+          <div class="zone-actions">
+            <button class="btn" data-action="run" data-zone='${zoneData}'>
+              <ha-icon icon="mdi:play"></ha-icon><span></span>
+            </button>
+          </div>`;
+        if (row) {
+          container.replaceChild(div, row);
+        } else {
+          container.appendChild(div);
+        }
+        row = div;
+      }
 
-      if (existingRows[i]) {
-        existingRows[i].outerHTML = html;
+      // In-place updates — never destroy the row or button elements
+      row.className = `zone-row ${isOn ? "active" : ""}`;
+
+      const icon = row.querySelector(".zone-icon");
+      icon.setAttribute("icon", isOn ? "mdi:water" : "mdi:sprinkler");
+      icon.className = `zone-icon ${isOn ? "active" : ""}`;
+
+      row.querySelector(".zone-name").textContent = zone.name;
+      row.querySelector(".zone-meta").textContent = meta;
+
+      const prog = row.querySelector(".zone-progress");
+      prog.className = `zone-progress ${isOn ? "visible" : ""}`;
+      row.querySelector(".zone-progress-bar").style.width = `${progress}%`;
+
+      // Only swap the button if on/off state changed (preserve element otherwise)
+      const btn = row.querySelector(".zone-actions .btn");
+      const btnIsStop = btn.dataset.action === "stop";
+      if (isOn !== btnIsStop) {
+        btn.dataset.action = isOn ? "stop" : "run";
+        btn.dataset.zone   = zoneData;
+        btn.className      = `btn ${isOn ? "btn-stop" : "btn-run"}`;
+        btn.querySelector("ha-icon").setAttribute("icon", isOn ? "mdi:stop" : "mdi:play");
+        btn.querySelector("span").textContent = isOn ? "Stop" : "Run";
       } else {
-        container.insertAdjacentHTML("beforeend", html);
+        btn.dataset.zone = zoneData;
       }
     });
 
