@@ -73,11 +73,16 @@ class ZoneDurationNumber(CoordinatorEntity, NumberEntity):
         zone = self.coordinator.zones.get(self._zone_id)
         return float(zone.default_duration) if zone else 600.0
 
+    @property
+    def extra_state_attributes(self) -> dict:
+        return {"zone_id": self._zone_id}
+
     async def async_set_native_value(self, value: float) -> None:
         zone = self.coordinator.zones.get(self._zone_id)
         if zone:
             zone.default_duration = int(value)
             self.async_write_ha_state()
+            await self.coordinator.async_save_schedule()
 
     @callback
     def _handle_coordinator_update(self) -> None:
@@ -111,12 +116,17 @@ class ZoneIntervalDaysNumber(CoordinatorEntity, NumberEntity):
         zone = self.coordinator.zones.get(self._zone_id)
         return float(zone.schedule.get("interval_days", 2)) if zone else 2.0
 
+    @property
+    def extra_state_attributes(self) -> dict:
+        return {"zone_id": self._zone_id}
+
     async def async_set_native_value(self, value: float) -> None:
         zone = self.coordinator.zones.get(self._zone_id)
         if zone:
             zone.schedule["interval_days"] = int(value)
             self.coordinator.update_next_runs()
             self.async_write_ha_state()
+            await self.coordinator.async_save_schedule()
 
     @callback
     def _handle_coordinator_update(self) -> None:

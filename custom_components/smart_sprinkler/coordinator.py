@@ -69,6 +69,7 @@ class SprinklerCoordinator(DataUpdateCoordinator):
         self._scheduler_task: asyncio.Task | None = None
         self._controller_enabled: bool = True
         self._store = Store(hass, STORAGE_VERSION, f"{STORAGE_KEY_PREFIX}_{entry_id}")
+        self._schedule_store = Store(hass, STORAGE_VERSION, f"{DOMAIN}_schedule_{entry_id}")
         self._forecast_cache: list[dict] = []
 
         for zone_cfg in config.get("zones", []):
@@ -102,6 +103,30 @@ class SprinklerCoordinator(DataUpdateCoordinator):
             "date": dt_util.now().date().isoformat(),
             "total": self.total_water_time_today,
             "zones": {zid: z.water_time_today for zid, z in self.zones.items()},
+        })
+
+    async def async_restore_schedule(self) -> None:
+        """Restore schedule settings from storage after restart."""
+        data = await self._schedule_store.async_load()
+        if not data:
+            return
+        for zid, sched in data.get("zones", {}).items():
+            if zid in self.zones:
+                self.zones[zid].schedule.update(sched.get("schedule", {}))
+                if "default_duration" in sched:
+                    self.zones[zid].default_duration = sched["default_duration"]
+        self.update_next_runs()
+
+    async def async_save_schedule(self) -> None:
+        """Persist schedule settings for all zones."""
+        await self._schedule_store.async_save({
+            "zones": {
+                zid: {
+                    "schedule": z.schedule,
+                    "default_duration": z.default_duration,
+                }
+                for zid, z in self.zones.items()
+            },
         })
 
     # ------------------------------------------------------------------

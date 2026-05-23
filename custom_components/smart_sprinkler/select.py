@@ -53,12 +53,17 @@ class ZoneScheduleModeSelect(CoordinatorEntity, SelectEntity):
         zone = self.coordinator.zones.get(self._zone_id)
         return zone.schedule.get("mode", "daily") if zone else "daily"
 
+    @property
+    def extra_state_attributes(self) -> dict:
+        return {"zone_id": self._zone_id}
+
     async def async_select_option(self, option: str) -> None:
         zone = self.coordinator.zones.get(self._zone_id)
         if zone:
             zone.schedule["mode"] = option
             self.coordinator.update_next_runs()
             self.async_write_ha_state()
+            await self.coordinator.async_save_schedule()
 
     @callback
     def _handle_coordinator_update(self) -> None:
@@ -109,12 +114,17 @@ class ZoneWeekdaysSelect(CoordinatorEntity, SelectEntity):
         days = zone.schedule.get("weekdays", [])
         return ",".join(days) if days else "mon,wed,fri"
 
+    @property
+    def extra_state_attributes(self) -> dict:
+        return {"zone_id": self._zone_id}
+
     async def async_select_option(self, option: str) -> None:
         zone = self.coordinator.zones.get(self._zone_id)
         if zone:
             zone.schedule["weekdays"] = [d.strip() for d in option.split(",") if d.strip() in WEEKDAYS]
             self.coordinator.update_next_runs()
             self.async_write_ha_state()
+            await self.coordinator.async_save_schedule()
 
     @callback
     def _handle_coordinator_update(self) -> None:

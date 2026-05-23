@@ -55,6 +55,10 @@ class ZoneStartTimeEntity(CoordinatorEntity, TimeEntity):
         m = zone.schedule.get("start_minute", 0)
         return time(h, m)
 
+    @property
+    def extra_state_attributes(self) -> dict:
+        return {"zone_id": self._zone_id}
+
     async def async_set_value(self, value: time) -> None:
         zone = self.coordinator.zones.get(self._zone_id)
         if zone:
@@ -62,6 +66,7 @@ class ZoneStartTimeEntity(CoordinatorEntity, TimeEntity):
             zone.schedule["start_minute"] = value.minute
             self.coordinator.update_next_runs()
             self.async_write_ha_state()
+            await self.coordinator.async_save_schedule()
 
     @callback
     def _handle_coordinator_update(self) -> None:

@@ -116,6 +116,10 @@ class ZoneNextRunSensor(CoordinatorEntity, SensorEntity):
         zone = self.coordinator.zones.get(self._zone_id)
         return zone.next_run if zone else None
 
+    @property
+    def extra_state_attributes(self) -> dict:
+        return {"zone_id": self._zone_id}
+
     @callback
     def _handle_coordinator_update(self) -> None:
         self.async_write_ha_state()

@@ -157,25 +157,17 @@ class SmartSprinklerCard extends HTMLElement {
       if (ent.device_id !== deviceId) continue;
       const s = states[ent.entity_id];
       if (!s) continue;
+      if (s.attributes?.zone_id !== zoneId) continue;
 
-      // Schedule mode select
-      if (ent.entity_id.includes("schedule_mode") && ent.entity_id.includes(zoneId.substring(0, 6))) {
+      if (ent.entity_id.includes("schedule_mode")) {
         scheduleMode = s.state || "daily";
-      }
-      // Start time
-      if (ent.entity_id.includes("start_time") && ent.entity_id.includes(zoneId.substring(0, 6))) {
+      } else if (ent.entity_id.includes("start_time")) {
         startTime = s.state || "06:00";
-      }
-      // Weekdays
-      if (ent.entity_id.includes("weekdays") && ent.entity_id.includes(zoneId.substring(0, 6))) {
+      } else if (ent.entity_id.includes("weekdays")) {
         weekdays = s.state || "";
-      }
-      // Interval days
-      if (ent.entity_id.includes("interval_days") && ent.entity_id.includes(zoneId.substring(0, 6))) {
+      } else if (ent.entity_id.includes("interval_days")) {
         intervalDays = parseInt(s.state) || 2;
-      }
-      // Next run sensor
-      if (ent.entity_id.includes("next_run") && ent.entity_id.includes(zoneId.substring(0, 6))) {
+      } else if (ent.entity_id.includes("next_run")) {
         nextRun = s.state && s.state !== "unknown" && s.state !== "unavailable" ? s.state : null;
       }
     }
@@ -186,21 +178,18 @@ class SmartSprinklerCard extends HTMLElement {
   _findScheduleEntities(deviceId, zoneId) {
     if (!this._hass || !deviceId) return {};
     const entities = this._hass.entities || {};
+    const states   = this._hass.states  || {};
     const result = {};
-    const prefix = zoneId.substring(0, 6);
 
     for (const ent of Object.values(entities)) {
       if (ent.device_id !== deviceId) continue;
-      if (ent.entity_id.includes("schedule_mode") && ent.entity_id.includes(prefix))
-        result.scheduleMode = ent.entity_id;
-      if (ent.entity_id.includes("start_time") && ent.entity_id.includes(prefix))
-        result.startTime = ent.entity_id;
-      if (ent.entity_id.includes("weekdays") && ent.entity_id.includes(prefix))
-        result.weekdays = ent.entity_id;
-      if (ent.entity_id.includes("interval_days") && ent.entity_id.includes(prefix))
-        result.intervalDays = ent.entity_id;
-      if (ent.entity_id.includes("duration") && !ent.entity_id.includes("cycle") && ent.entity_id.includes(prefix))
-        result.duration = ent.entity_id;
+      const s = states[ent.entity_id];
+      if (!s || s.attributes?.zone_id !== zoneId) continue;
+      if (ent.entity_id.includes("schedule_mode")) result.scheduleMode = ent.entity_id;
+      else if (ent.entity_id.includes("start_time")) result.startTime = ent.entity_id;
+      else if (ent.entity_id.includes("weekdays")) result.weekdays = ent.entity_id;
+      else if (ent.entity_id.includes("interval_days")) result.intervalDays = ent.entity_id;
+      else if (ent.entity_id.includes("duration") && !ent.entity_id.includes("cycle")) result.duration = ent.entity_id;
     }
     return result;
   }
