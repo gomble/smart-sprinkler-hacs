@@ -303,6 +303,15 @@ class SmartSprinklerCard extends HTMLElement {
 
     const statusEnt = this._statusState();
     if (!statusEnt) {
+      if (this._config.entity) {
+        this.shadowRoot.innerHTML = `
+          <ha-card style="padding:16px;">
+            <div style="text-align:center;color:var(--secondary-text-color);font-size:0.9em;">
+              Connecting to ${this._config.entity}…
+            </div>
+          </ha-card>`;
+        return;
+      }
       const candidates = this._findAllStatusCandidates();
       const rows = candidates.length
         ? candidates.map(id => `

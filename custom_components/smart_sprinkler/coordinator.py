@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import dt as dt_util
 
@@ -34,6 +35,8 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 UPDATE_INTERVAL = timedelta(seconds=30)
+STORAGE_VERSION = 1
+STORAGE_KEY_PREFIX = f"{DOMAIN}_water_time"
 
 
 class SprinklerCoordinator(DataUpdateCoordinator):
@@ -65,12 +68,40 @@ class SprinklerCoordinator(DataUpdateCoordinator):
         self.valve_delay_remaining: int = 0
         self._scheduler_task: asyncio.Task | None = None
         self._controller_enabled: bool = True
+        self._store = Store(hass, STORAGE_VERSION, f"{STORAGE_KEY_PREFIX}_{entry_id}")
 
         for zone_cfg in config.get("zones", []):
             zid = zone_cfg["zone_id"]
             self.zones[zid] = ZoneState(zid, zone_cfg)
 
         self.update_next_runs()
+
+    # ------------------------------------------------------------------
+    # Water time persistence
+    # ------------------------------------------------------------------
+
+    async def async_restore_water_times(self) -> None:
+        """Restore water times from storage after restart."""
+        data = await self._store.async_load()
+        if not data:
+            return
+        stored_date = data.get("date")
+        today = dt_util.now().date().isoformat()
+        if stored_date != today:
+            return
+        self.total_water_time_today = data.get("total", 0)
+        self._last_date_reset = dt_util.now()
+        for zid, seconds in data.get("zones", {}).items():
+            if zid in self.zones:
+                self.zones[zid].water_time_today = seconds
+
+    async def _async_save_water_times(self) -> None:
+        """Persist current water times to storage."""
+        await self._store.async_save({
+            "date": dt_util.now().date().isoformat(),
+            "total": self.total_water_time_today,
+            "zones": {zid: z.water_time_today for zid, z in self.zones.items()},
+        })
 
     # ------------------------------------------------------------------
     # Properties
@@ -310,6 +341,7 @@ class SprinklerCoordinator(DataUpdateCoordinator):
             zone.water_time_today += elapsed
             self.total_water_time_today += elapsed
             zone.last_run = dt_util.now()
+            self.hass.async_create_task(self._async_save_water_times())
 
         zone.is_running = False
         zone.is_activating = False

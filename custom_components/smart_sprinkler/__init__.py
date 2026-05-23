@@ -55,6 +55,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Merge options on top of data so options-flow changes are picked up
     config = {**entry.data, **entry.options}
     coordinator = SprinklerCoordinator(hass, entry.entry_id, config)
+    await coordinator.async_restore_water_times()
     await coordinator.async_config_entry_first_refresh()
     hass.data[DOMAIN][entry.entry_id] = coordinator
     await coordinator.async_start_scheduler()

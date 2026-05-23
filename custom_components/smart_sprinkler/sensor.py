@@ -37,7 +37,7 @@ class ZoneWaterTimeSensor(CoordinatorEntity, SensorEntity):
     """Total seconds the zone has watered today."""
 
     _attr_native_unit_of_measurement = UnitOfTime.SECONDS
-    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_state_class = SensorStateClass.TOTAL
     _attr_icon = "mdi:timer-outline"
 
     def __init__(self, coordinator: SprinklerCoordinator, entry: ConfigEntry, zone_id: str) -> None:
@@ -164,7 +164,7 @@ class TotalWaterTimeSensor(CoordinatorEntity, SensorEntity):
     """Total watering seconds across all zones today."""
 
     _attr_native_unit_of_measurement = UnitOfTime.SECONDS
-    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_state_class = SensorStateClass.TOTAL
     _attr_icon = "mdi:water-percent"
 
     def __init__(self, coordinator: SprinklerCoordinator, entry: ConfigEntry) -> None:
