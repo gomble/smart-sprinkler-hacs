@@ -69,6 +69,7 @@ class SprinklerCoordinator(DataUpdateCoordinator):
         self._scheduler_task: asyncio.Task | None = None
         self._controller_enabled: bool = True
         self._store = Store(hass, STORAGE_VERSION, f"{STORAGE_KEY_PREFIX}_{entry_id}")
+        self._forecast_cache: list[dict] = []
 
         for zone_cfg in config.get("zones", []):
             zid = zone_cfg["zone_id"]
@@ -137,6 +138,9 @@ class SprinklerCoordinator(DataUpdateCoordinator):
             if self.status == STATUS_RAIN_DELAY:
                 self.status = STATUS_IDLE
 
+        self.update_next_runs()
+        await self._async_update_forecast()
+
         return {
             "status": self.status,
             "zones": {zid: z.as_dict() for zid, z in self.zones.items()},
@@ -150,6 +154,22 @@ class SprinklerCoordinator(DataUpdateCoordinator):
     # ------------------------------------------------------------------
     # Weather helpers
     # ------------------------------------------------------------------
+
+    async def _async_update_forecast(self) -> None:
+        """Fetch daily forecast via the weather.get_forecasts service."""
+        weather_entity = self.config.get("weather_entity")
+        if not weather_entity:
+            return
+        try:
+            result = await self.hass.services.async_call(
+                "weather", "get_forecasts",
+                {"entity_id": weather_entity, "type": "daily"},
+                blocking=True,
+                return_response=True,
+            )
+            self._forecast_cache = (result or {}).get(weather_entity, {}).get("forecast", [])
+        except Exception:
+            pass
 
     async def async_check_weather(self) -> tuple[bool, str | None]:
         weather_entity = self.config.get("weather_entity")
@@ -173,7 +193,7 @@ class SprinklerCoordinator(DataUpdateCoordinator):
         if wind_speed >= wind_threshold:
             return True, f"high_wind ({wind_speed} km/h)"
 
-        for day in (attrs.get("forecast") or [])[:2]:
+        for day in self._forecast_cache[:2]:
             precip = day.get("precipitation", 0) or 0
             if precip >= rain_threshold:
                 return True, f"rain_forecast ({precip} mm)"
@@ -189,9 +209,8 @@ class SprinklerCoordinator(DataUpdateCoordinator):
         if state is None:
             return None
         attrs = state.attributes
-        forecast = attrs.get("forecast") or []
-        today_fc = forecast[0] if len(forecast) > 0 else {}
-        tomorrow_fc = forecast[1] if len(forecast) > 1 else {}
+        today_fc = self._forecast_cache[0] if len(self._forecast_cache) > 0 else {}
+        tomorrow_fc = self._forecast_cache[1] if len(self._forecast_cache) > 1 else {}
         return {
             "current_temp": attrs.get("temperature"),
             "current_condition": state.state,

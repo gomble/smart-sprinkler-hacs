@@ -265,7 +265,8 @@ class SmartSprinklerCard extends HTMLElement {
     if (fc.temp_high != null) temps.push(`${Math.round(fc.temp_high)}°`);
     if (fc.temp_low != null) temps.push(`${Math.round(fc.temp_low)}°`);
     const tempStr = temps.join("/");
-    const precip = fc.precipitation ? `<span class="wx-precip">${fc.precipitation}mm</span>` : "";
+    const precip = fc.precipitation != null && fc.precipitation > 0
+      ? `<span class="wx-precip"><ha-icon icon="mdi:water"></ha-icon>${fc.precipitation}mm</span>` : "";
     return `<div class="wx-day"><ha-icon icon="${icon}"></ha-icon><b>${label}</b> ${tempStr} ${precip}</div>`;
   }
 
