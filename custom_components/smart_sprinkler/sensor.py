@@ -151,6 +151,8 @@ class ControllerStatusSensor(CoordinatorEntity, SensorEntity):
                 else None
             ),
             "weather_skip_reason": self.coordinator.weather_skip_reason,
+            "total_water_time_today": self.coordinator.total_water_time_today,
+            "valve_delay_remaining": self.coordinator.valve_delay_remaining,
         }
 
     @callback
