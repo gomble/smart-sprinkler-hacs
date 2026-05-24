@@ -343,6 +343,33 @@ class SprinklerCoordinator(DataUpdateCoordinator):
     # Internal — per-zone sequence task
     # ------------------------------------------------------------------
 
+    async def _async_wait_for_zone_available(self, zone: "ZoneState") -> None:
+        """Wait until the zone switch becomes available (not 'unavailable')."""
+        if not zone.switch_entity:
+            return
+        state = self.hass.states.get(zone.switch_entity)
+        if state and state.state != "unavailable":
+            return
+
+        ready = asyncio.Event()
+
+        from homeassistant.helpers.event import async_track_state_change_event
+
+        def _on_state_change(ev):
+            new_state = ev.data.get("new_state")
+            if new_state and new_state.state != "unavailable":
+                ready.set()
+
+        unsub = async_track_state_change_event(
+            self.hass, [zone.switch_entity], _on_state_change
+        )
+        try:
+            await asyncio.wait_for(ready.wait(), timeout=60)
+        except asyncio.TimeoutError:
+            _LOGGER.warning("Timeout waiting for %s to become available", zone.switch_entity)
+        finally:
+            unsub()
+
     async def _async_run_zone(
         self, zone_id: str, duration_seconds: int, apply_startup_delay: bool
     ) -> None:
@@ -352,16 +379,19 @@ class SprinklerCoordinator(DataUpdateCoordinator):
 
         try:
             # ── Startup delay (only for first zone) ───────────────────
-            if apply_startup_delay and delay > 0:
+            if apply_startup_delay:
                 self.status = STATUS_WAITING
-                self.valve_delay_remaining = delay
-                self.async_set_updated_data(await self._async_update_data())
+                if delay > 0:
+                    self.valve_delay_remaining = delay
+                    self.async_set_updated_data(await self._async_update_data())
 
-                for tick in range(delay):
-                    await asyncio.sleep(1)
-                    self.valve_delay_remaining = delay - tick - 1
+                    for tick in range(delay):
+                        await asyncio.sleep(1)
+                        self.valve_delay_remaining = delay - tick - 1
 
-                self.valve_delay_remaining = 0
+                    self.valve_delay_remaining = 0
+
+                await self._async_wait_for_zone_available(zone)
 
             # ── Open zone valve ───────────────────────────────────────
             zone.is_activating = False
