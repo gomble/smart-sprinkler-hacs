@@ -86,6 +86,7 @@ class ZoneDurationNumber(CoordinatorEntity, NumberEntity):
             zone.default_duration = int(value)
             self.async_write_ha_state()
             await self.coordinator.async_save_schedule()
+            await self.coordinator.async_request_refresh()
 
     @callback
     def _handle_coordinator_update(self) -> None:
@@ -130,6 +131,7 @@ class ZoneIntervalDaysNumber(CoordinatorEntity, NumberEntity):
             self.coordinator.update_next_runs()
             self.async_write_ha_state()
             await self.coordinator.async_save_schedule()
+            await self.coordinator.async_request_refresh()
 
     @callback
     def _handle_coordinator_update(self) -> None:

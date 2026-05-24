@@ -64,6 +64,7 @@ class ZoneScheduleModeSelect(CoordinatorEntity, SelectEntity):
             self.coordinator.update_next_runs()
             self.async_write_ha_state()
             await self.coordinator.async_save_schedule()
+            await self.coordinator.async_request_refresh()
 
     @callback
     def _handle_coordinator_update(self) -> None:
@@ -125,6 +126,7 @@ class ZoneWeekdaysSelect(CoordinatorEntity, SelectEntity):
             self.coordinator.update_next_runs()
             self.async_write_ha_state()
             await self.coordinator.async_save_schedule()
+            await self.coordinator.async_request_refresh()
 
     @callback
     def _handle_coordinator_update(self) -> None:
