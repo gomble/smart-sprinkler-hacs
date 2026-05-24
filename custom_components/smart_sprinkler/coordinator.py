@@ -277,15 +277,19 @@ class SprinklerCoordinator(DataUpdateCoordinator):
             return
 
         # Cancel any pending shutdown so pump stays on
+        shutdown_was_pending = False
         if self._shutdown_task and not self._shutdown_task.done():
             self._shutdown_task.cancel()
             self._shutdown_task = None
+            shutdown_was_pending = True
 
         # Cancel existing task for this specific zone if it is somehow still running
         await self._cancel_zone_task(zone_id)
 
         zone = self.zones[zone_id]
-        is_first_zone = not self._pump_should_be_on  # check BEFORE marking activating
+        # Pump is still on if we just cancelled a pending shutdown or other zones run
+        pump_already_on = shutdown_was_pending or self._pump_should_be_on
+        is_first_zone = not pump_already_on
 
         # Mark zone as activating immediately → switch shows ON right away
         zone.is_activating = True
@@ -343,13 +347,20 @@ class SprinklerCoordinator(DataUpdateCoordinator):
     # Internal — per-zone sequence task
     # ------------------------------------------------------------------
 
-    async def _async_wait_for_zone_available(self, zone: "ZoneState") -> None:
-        """Wait until the zone switch becomes available (not 'unavailable')."""
+    async def _async_wait_for_zone_available(self, zone: "ZoneState", force_wait: bool = False) -> None:
+        """Wait until the zone switch becomes available (not 'unavailable').
+
+        If force_wait is True, always wait for a state change even if the
+        switch appears available (handles the case where HA state is stale
+        right after powering the controller).
+        """
         if not zone.switch_entity:
             return
-        state = self.hass.states.get(zone.switch_entity)
-        if state and state.state != "unavailable":
-            return
+
+        if not force_wait:
+            state = self.hass.states.get(zone.switch_entity)
+            if state and state.state != "unavailable":
+                return
 
         ready = asyncio.Event()
 
@@ -357,14 +368,18 @@ class SprinklerCoordinator(DataUpdateCoordinator):
 
         def _on_state_change(ev):
             new_state = ev.data.get("new_state")
-            if new_state and new_state.state != "unavailable":
+            if new_state and new_state.state not in ("unavailable", "unknown"):
                 ready.set()
 
+        # Check again after registering listener (avoid race)
         unsub = async_track_state_change_event(
             self.hass, [zone.switch_entity], _on_state_change
         )
         try:
-            await asyncio.wait_for(ready.wait(), timeout=60)
+            state = self.hass.states.get(zone.switch_entity)
+            if not force_wait and state and state.state not in ("unavailable", "unknown"):
+                return
+            await asyncio.wait_for(ready.wait(), timeout=30)
         except asyncio.TimeoutError:
             _LOGGER.warning("Timeout waiting for %s to become available", zone.switch_entity)
         finally:
@@ -391,7 +406,7 @@ class SprinklerCoordinator(DataUpdateCoordinator):
 
                     self.valve_delay_remaining = 0
 
-                await self._async_wait_for_zone_available(zone)
+                await self._async_wait_for_zone_available(zone, force_wait=True)
 
             # ── Open zone valve ───────────────────────────────────────
             zone.is_activating = False
@@ -469,6 +484,9 @@ class SprinklerCoordinator(DataUpdateCoordinator):
         delay = int(self.config.get(CONF_VALVE_DELAY, DEFAULT_VALVE_DELAY))
 
         try:
+            # Grace period: allow a new zone to cancel this before we cut power
+            await asyncio.sleep(2)
+
             if delay > 0:
                 self.status = STATUS_STOPPING
                 self.valve_delay_remaining = delay
