@@ -22,7 +22,9 @@ from .const import (
     DEFAULT_WIND_THRESHOLD,
     DEFAULT_TEMP_MIN,
     DEFAULT_VALVE_DELAY,
+    DEFAULT_SHUTDOWN_GRACE,
     CONF_VALVE_DELAY,
+    CONF_SHUTDOWN_GRACE,
     SCHEDULE_MODE_DAILY,
     SCHEDULE_MODE_INTERVAL,
     SCHEDULE_MODE_ODD,
@@ -482,10 +484,12 @@ class SprinklerCoordinator(DataUpdateCoordinator):
     async def _async_do_shutdown(self) -> None:
         """Shutdown delay then pump/master off — runs as a cancellable task."""
         delay = int(self.config.get(CONF_VALVE_DELAY, DEFAULT_VALVE_DELAY))
+        grace = int(self.config.get(CONF_SHUTDOWN_GRACE, DEFAULT_SHUTDOWN_GRACE))
 
         try:
             # Grace period: allow a new zone to cancel this before we cut power
-            await asyncio.sleep(2)
+            if grace > 0:
+                await asyncio.sleep(grace)
 
             if delay > 0:
                 self.status = STATUS_STOPPING

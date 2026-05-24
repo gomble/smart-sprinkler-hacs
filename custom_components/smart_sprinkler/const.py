@@ -21,6 +21,7 @@ CONF_ZONE_VALVE_GPIO = "zone_valve_gpio"
 CONF_PUMP_SWITCH = "pump_switch"
 CONF_MASTER_SWITCH = "master_switch"
 CONF_VALVE_DELAY = "valve_delay"
+CONF_SHUTDOWN_GRACE = "shutdown_grace"
 CONF_WEATHER_ENTITY = "weather_entity"
 CONF_RAIN_THRESHOLD = "rain_threshold"
 CONF_WIND_THRESHOLD = "wind_threshold"
@@ -30,6 +31,7 @@ CONF_ENABLE_WEATHER = "enable_weather"
 
 # Defaults
 DEFAULT_VALVE_DELAY = 0             # seconds — delay between pump/master on and zone valve open
+DEFAULT_SHUTDOWN_GRACE = 2          # seconds — grace period before shutting down pump/master
 DEFAULT_RAIN_THRESHOLD = 2.0        # mm — skip if forecast rain >= this
 DEFAULT_WIND_THRESHOLD = 40.0       # km/h — skip if wind >= this
 DEFAULT_TEMP_MIN = 2.0              # °C — skip if temp <= this (freeze protection)
