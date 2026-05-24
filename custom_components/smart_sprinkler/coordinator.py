@@ -401,9 +401,7 @@ class SprinklerCoordinator(DataUpdateCoordinator):
             self._update_controller_status()
 
             if zone.switch_entity:
-                await self.hass.services.async_call(
-                    "switch", "turn_on", {"entity_id": zone.switch_entity}
-                )
+                await self._async_call_switch(zone.switch_entity, True)
 
             self.async_set_updated_data(await self._async_update_data())
 
@@ -444,9 +442,7 @@ class SprinklerCoordinator(DataUpdateCoordinator):
             return
 
         if zone.switch_entity and (zone.is_running or zone.is_activating):
-            await self.hass.services.async_call(
-                "switch", "turn_off", {"entity_id": zone.switch_entity}
-            )
+            await self._async_call_switch(zone.switch_entity, False)
 
         if zone.started_at:
             elapsed = int((dt_util.now() - zone.started_at).total_seconds())
@@ -621,19 +617,33 @@ class SprinklerCoordinator(DataUpdateCoordinator):
         except asyncio.CancelledError:
             raise
 
+    async def _async_call_switch(self, entity_id: str, turn_on: bool) -> None:
+        """Call switch service with retry on connection error."""
+        action = "turn_on" if turn_on else "turn_off"
+        for attempt in range(3):
+            try:
+                await self.hass.services.async_call(
+                    "switch", action, {"entity_id": entity_id}
+                )
+                return
+            except Exception as err:
+                if attempt < 2:
+                    _LOGGER.debug(
+                        "Retry %d for %s.%s: %s", attempt + 1, entity_id, action, err
+                    )
+                    await asyncio.sleep(2)
+                else:
+                    _LOGGER.error("Failed to %s %s after 3 attempts: %s", action, entity_id, err)
+
     async def _async_set_pump(self, on: bool) -> None:
         pump = self.config.get("pump_switch")
         if pump:
-            await self.hass.services.async_call(
-                "switch", "turn_on" if on else "turn_off", {"entity_id": pump}
-            )
+            await self._async_call_switch(pump, on)
 
     async def _async_set_master(self, on: bool) -> None:
         master = self.config.get("master_switch")
         if master:
-            await self.hass.services.async_call(
-                "switch", "turn_on" if on else "turn_off", {"entity_id": master}
-            )
+            await self._async_call_switch(master, on)
 
 
 class ZoneState:
